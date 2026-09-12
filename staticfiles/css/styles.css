@@ -1,0 +1,103 @@
+/* Custom Responsive Rules */
+@media print {
+    .no-print { 
+        display: none !important; 
+    }
+    .table-responsive { 
+        overflow: visible !important; 
+    }
+}
+
+.qr-img {
+    width: 90px;
+    height: 90px;
+    image-rendering: pixelated;
+}
+
+.modal-spec-field {
+    display: none; /* Hidden by default until asset type is chosen */
+}
+
+/* ================= MOBILE RESPONSIVE LAYOUT ================= */
+@media (max-width: 768px) {
+    body.container {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    /* Convert Table to Card List View on Mobile */
+    .responsive-card-table, 
+    .responsive-card-table tbody, 
+    .responsive-card-table tr, 
+    .responsive-card-table td {
+        display: block;
+        width: 100%;
+    }
+
+    /* Hide Desktop Table Headers */
+    .responsive-card-table thead {
+        display: none;
+    }
+
+    /* Card Box Styling per Asset Row */
+    .responsive-card-table tbody tr {
+        background: #ffffff;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
+    /* Column Data Label Alignment */
+    .responsive-card-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.4rem 0;
+        border: none;
+        border-bottom: 1px dashed #e9ecef;
+        text-align: right;
+    }
+
+    .responsive-card-table td:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    /* Inject Data Column Titles using pseudo elements */
+    .responsive-card-table td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        text-align: left;
+        color: #495057;
+        margin-right: 1rem;
+    }
+
+    /* QR Code and Action Alignment inside Mobile Cards */
+    .responsive-card-table td[data-label="QR Code"],
+    .responsive-card-table td[data-label="Actions"] {
+        justify-content: space-between;
+    }
+
+    /* Full-screen Modals on Small Devices */
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+
+    /* Mobile Header Button Layout */
+    .nav-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .nav-actions .btn,
+    .nav-actions form {
+        flex: 1 1 calc(50% - 0.5rem);
+    }
+
+    .nav-actions form .btn {
+        width: 100%;
+    }
+}

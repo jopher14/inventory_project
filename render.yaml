@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: django-inventory-app
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn inventory_project.wsgi:application"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: inventory-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: WEB_CONCURRENCY
+        value: "4"
+
+databases:
+  - name: inventory-db
+    databaseName: inventory_db
+    user: inventory_user
