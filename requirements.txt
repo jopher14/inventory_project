@@ -3,3 +3,5 @@ pillow
 qrcode
 reportlab
 flake8
+django-crispy-forms
+crispy-bootstrap5
