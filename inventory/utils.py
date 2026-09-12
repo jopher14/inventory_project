@@ -1,20 +1,23 @@
 import io
 import math
-from PIL import Image, ImageDraw, ImageFont
-from django.http import HttpResponse
+
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
+from PIL import Image, ImageDraw, ImageFont
+
 from .models import Asset
 from .views import role_required
 
+
 @login_required
-@role_required(allowed_roles=['ADMIN', 'IT'])
+@role_required(allowed_roles=["ADMIN", "IT"])
 def export_qr_grid_png(request):
     """
     Exports all asset QR codes into a single downloadable PNG grid image formatted as:
     <CompanyTag>   <CompanyTag>   <CompanyTag>   <CompanyTag>
       <QRCode>       <QRCode>       <QRCode>       <QRCode>
     """
-    assets = Asset.objects.filter(qr_code__isnull=False).exclude(qr_code='')
+    assets = Asset.objects.filter(qr_code__isnull=False).exclude(qr_code="")
 
     if not assets.exists():
         return HttpResponse("No assets with QR codes found to export.", status=404)
@@ -22,7 +25,7 @@ def export_qr_grid_png(request):
     # Grid & Item Layout Configurations
     COLUMNS = 4
     ROWS = math.ceil(assets.count() / COLUMNS)
-    
+
     CARD_WIDTH = 240
     CARD_HEIGHT = 280
     PADDING = 20
@@ -33,7 +36,7 @@ def export_qr_grid_png(request):
     canvas_height = (ROWS * CARD_HEIGHT) + ((ROWS + 1) * PADDING) + HEADER_MARGIN
 
     # Create white canvas
-    canvas = Image.new('RGB', (canvas_width, canvas_height), color='white')
+    canvas = Image.new("RGB", (canvas_width, canvas_height), color="white")
     draw = ImageDraw.Draw(canvas)
 
     # Load system font (falls back to PIL default if truetype isn't available)
@@ -68,7 +71,7 @@ def export_qr_grid_png(request):
         try:
             asset_qr = Image.open(asset.qr_code.path).convert("RGB")
             asset_qr = asset_qr.resize((180, 180), Image.Resampling.LANCZOS)
-            
+
             # Center QR image inside the item card
             qr_x = x_offset + (CARD_WIDTH - 180) // 2
             qr_y = y_offset + 45
@@ -81,14 +84,14 @@ def export_qr_grid_png(request):
         draw.rectangle(
             [x_offset, y_offset, x_offset + CARD_WIDTH, y_offset + CARD_HEIGHT],
             outline="#D3D3D3",
-            width=1
+            width=1,
         )
 
     # Stream generated Image buffer to HTTP Response
     buffer = io.BytesIO()
-    canvas.save(buffer, format='PNG')
+    canvas.save(buffer, format="PNG")
     buffer.seek(0)
 
-    response = HttpResponse(buffer.getvalue(), content_type='image/png')
-    response['Content-Disposition'] = 'attachment; filename="Company_Asset_QRCodes_Sheet.png"'
+    response = HttpResponse(buffer.getvalue(), content_type="image/png")
+    response["Content-Disposition"] = 'attachment; filename="Company_Asset_QRCodes_Sheet.png"'
     return response

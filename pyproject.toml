@@ -1,0 +1,23 @@
+[tool.ruff]
+# Set line length to match standard Django conventions
+line-length = 120
+target-version = "py312"
+
+# Exclude migrations and virtual environments
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "migrations",
+    ".venv",
+    "venv",
+]
+
+[tool.ruff.lint]
+# Select rules: Pyflakes (F), pycodestyle (E, W), isort (I), Django-specific (DJ)
+select = ["E", "W", "F", "I", "DJ"]
+ignore = []
+
+# Ignore unused variables starting with an underscore (e.g., _ or _var)
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
