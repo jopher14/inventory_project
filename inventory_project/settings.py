@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 import dj_database_url
@@ -91,13 +92,37 @@ load_dotenv(BASE_DIR / ".env")
 # Database Configuration
 # ----------------------------------------------------
 # Uses DATABASE_URL on Render/production, or defaults to local SQLite
-DATABASES = {
-    "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
-}
+# Check if Django is running tests
+IS_TESTING = "test" in sys.argv
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if IS_TESTING:
+    # Always use fast in-memory SQLite for running tests
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "test_db.sqlite3",
+        }
+    }
+elif DATABASE_URL:
+    # Use PostgreSQL / Supabase for production and environments with DATABASE_URL
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+            ssl_require=True,
+        )
+    }
+else:
+    # Default fallback for standard local development
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 # Override for GitHub Actions CI
 if os.environ.get("GITHUB_ACTIONS") == "true":
