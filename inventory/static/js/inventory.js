@@ -6,6 +6,78 @@ document.addEventListener('DOMContentLoaded', function () {
         toast.show();
     });
 
+    // 1.5 Mobile Camera QR Scanner Integration
+    const tagInput = document.getElementById('company_tag_input');
+    const cameraBtn = document.getElementById('camera-trigger-btn');
+    const helperText = document.getElementById('helper-text');
+    const readerContainer = document.getElementById('qr-reader-container');
+    const closeScannerBtn = document.getElementById('close-scanner-btn');
+    const auditForm = document.getElementById('audit-form');
+
+    let html5QrCode = null;
+    const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0 && window.innerWidth <= 992);
+
+    if (cameraBtn && tagInput) {
+        if (isMobile) {
+            cameraBtn.classList.remove('d-none');
+            tagInput.placeholder = "Tap to scan QR code or type tag...";
+            if (helperText) {
+                helperText.textContent = "Tap the input field or camera icon to open live QR scanner.";
+            }
+
+            tagInput.addEventListener('click', startScanner);
+            cameraBtn.addEventListener('click', startScanner);
+        } else {
+            // Ensure camera button stays hidden on desktop
+            cameraBtn.classList.add('d-none');
+        }
+    }
+
+    function startScanner() {
+        if (!readerContainer) return;
+        readerContainer.style.display = 'block';
+        if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode("reader");
+        }
+
+        html5QrCode.start(
+            { facingMode: "environment" },
+            {
+                fps: 10,
+                qrbox: { width: 250, height: 250 }
+            },
+            (decodedText, decodedResult) => {
+                if (tagInput) tagInput.value = decodedText;
+                stopScanner();
+                if (auditForm) auditForm.submit();
+            },
+            (errorMessage) => {
+                // Scanning frame search loop (safe to ignore)
+            }
+        ).catch((err) => {
+            console.error("Unable to start scanning.", err);
+            alert("Camera access denied or not available.");
+            readerContainer.style.display = 'none';
+        });
+    }
+
+    function stopScanner() {
+        if (!readerContainer) return;
+        if (html5QrCode && html5QrCode.isScanning) {
+            html5QrCode.stop().then(() => {
+                readerContainer.style.display = 'none';
+            }).catch(err => {
+                console.error("Failed to stop scanning.", err);
+            });
+        } else {
+            readerContainer.style.display = 'none';
+        }
+    }
+
+    if (closeScannerBtn) {
+        closeScannerBtn.addEventListener('click', stopScanner);
+    }
+
     // 2. Add Asset Modal Dynamic Field Toggle Logic
     const assetTypeSelect = document.getElementById('modal_asset_type');
     if (assetTypeSelect) {
@@ -106,26 +178,22 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
 
                     data.assets.forEach(item => {
-                        // QR Code Cell formatting
                         const qrCell = item.qr_code_url 
                             ? `<div class="bg-white p-1 d-inline-block border rounded shadow-sm">
                                 <img src="${item.qr_code_url}" class="qr-img" alt="QR Code">
                                </div>` 
                             : `<span class="text-muted small">No QR</span>`;
 
-                        // Status Badge Color formatting
                         let statusBadgeClass = 'bg-primary';
                         if (item.status === 'AVAILABLE') statusBadgeClass = 'bg-success';
                         else if (item.status === 'UNDER_REPAIR') statusBadgeClass = 'bg-warning text-dark';
                         else if (item.status === 'DISPOSED') statusBadgeClass = 'bg-danger';
 
-                        // Helper function to truncate strings
                         function truncateText(text, maxLength = 25) {
                             if (!text) return '';
                             return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
                         }
 
-                        // Actions Column: Display Remarks if present, otherwise render Edit/Delete Buttons
                         let actionsCellContent = '';
                         if (item.latest_remark) {
                             const truncatedRemark = truncateText(item.latest_remark, 25);

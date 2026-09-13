@@ -215,3 +215,16 @@ body {
         width: 100%;
     }
 }
+
+#reader {
+    width: 100% !important;
+    min-height: 250px !important;
+    border: none !important;
+    border-radius: 8px;
+    overflow: hidden;
+}
+#reader video {
+    width: 100% !important;
+    height: auto !important;
+    object-fit: cover;
+}
