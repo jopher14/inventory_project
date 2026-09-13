@@ -228,3 +228,17 @@ body {
     height: auto !important;
     object-fit: cover;
 }
+
+/* Allow the top navigation card to overflow and give it a higher stacking layer */
+.card.glass-card:has(.nav-actions),
+.card.glass-card:has(.dropdown) {
+    overflow: visible !important;
+    position: relative;
+    z-index: 100 !important;
+}
+
+/* Force the active dropdown menu to sit above all other cards and layers */
+.dropdown-menu.show {
+    position: absolute !important;
+    z-index: 9999 !important;
+}
