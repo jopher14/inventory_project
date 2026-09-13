@@ -6,3 +6,7 @@ flake8
 django-crispy-forms
 crispy-bootstrap5
 python-dotenv
+gunicorn
+whitenoise
+dj-database-url
+psycopg2-binary
