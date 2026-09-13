@@ -1,13 +1,35 @@
-/* Custom Responsive Rules */
-@media print {
-    .no-print { 
-        display: none !important; 
-    }
-    .table-responsive { 
-        overflow: visible !important; 
-    }
+/* ================= GLOBAL & BACKGROUND STYLES ================= */
+body {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.90), rgba(30, 41, 59, 0.88)),
+                url('../images/dashboard-bg.jpeg'),
+                url('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=1920&auto=format&fit=crop');
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-attachment: fixed;
+    min-height: 100vh;
+    color: #f8fafc;
 }
 
+/* Glassmorphism Styling for Dashboard Cards */
+.glass-card {
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 12px;
+}
+
+/* Landing Hero Section */
+.landing-hero {
+    min-height: 80vh;
+    background: linear-gradient(rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.75)),
+                url('../images/dashboard-bg.jpeg') no-repeat center center fixed;
+    background-size: cover;
+    color: #ffffff;
+}
+
+/* QR Image & Field Rules */
 .qr-img {
     width: 90px;
     height: 90px;
@@ -16,6 +38,97 @@
 
 .modal-spec-field {
     display: none; /* Hidden by default until asset type is chosen */
+}
+
+/* ================= TABLE DESIGN IMPROVEMENTS ================= */
+.glass-card .table {
+    background-color: transparent !important;
+    color: #1e293b !important;
+}
+
+/* Modern Slate Table Header */
+.table-dark {
+    background: #1e293b !important;
+    color: #f8fafc !important;
+    border-bottom: 2px solid #38bdf8 !important;
+}
+
+.table-dark th {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    padding: 1rem 0.75rem;
+}
+
+/* User Links & Plain Text Alignment */
+.responsive-card-table td a,
+.responsive-card-table td {
+    color: #1e293b;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.responsive-card-table td a:hover {
+    color: #0284c7;
+    text-decoration: underline;
+}
+
+/* Subdued Modern Badges */
+.badge-role-it {
+    background-color: #dbeafe !important;
+    color: #1e40af !important;
+    font-weight: 600;
+}
+
+.badge-role-audit {
+    background-color: #cff4fc !important;
+    color: #055160 !important;
+    font-weight: 600;
+}
+
+.badge-role-superuser {
+    background-color: #ffe4e6 !important;
+    color: #9f1239 !important;
+    font-weight: 600;
+}
+
+/* Soft Status Pills */
+.badge-status-active {
+    background-color: #d1fae5 !important;
+    color: #065f46 !important;
+    border: 1px solid #a7f3d0;
+}
+
+.badge-status-disabled {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    border: 1px solid #e2e8f0;
+}
+
+/* Subtle Table Row Borders */
+.table > tbody > tr > td {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.85rem 0.75rem;
+}
+
+/* Table Row Hover State */
+.table-hover tbody tr:hover {
+    background-color: rgba(241, 245, 249, 0.7) !important;
+}
+
+/* ================= PRINT STYLES ================= */
+@media print {
+    .no-print { 
+        display: none !important; 
+    }
+    .table-responsive { 
+        overflow: visible !important; 
+    }
+    body {
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
 }
 
 /* ================= MOBILE RESPONSIVE LAYOUT ================= */
@@ -76,7 +189,8 @@
 
     /* QR Code and Action Alignment inside Mobile Cards */
     .responsive-card-table td[data-label="QR Code"],
-    .responsive-card-table td[data-label="Actions"] {
+    .responsive-card-table td[data-label="Actions"],
+    .responsive-card-table td[data-label="Scanned Form"] {
         justify-content: space-between;
     }
 
