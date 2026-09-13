@@ -105,6 +105,9 @@ if IS_TESTING:
             "NAME": BASE_DIR / "test_db.sqlite3",
         }
     }
+# ----------------------------------------------------
+# Comment this DATABASE_URL elif part for local development
+# ----------------------------------------------------
 elif DATABASE_URL:
     # Use PostgreSQL / Supabase for production and environments with DATABASE_URL
     DATABASES = {
