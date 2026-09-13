@@ -1,5 +1,5 @@
 from django import forms
-from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.exceptions import ValidationError
 
@@ -53,21 +53,25 @@ class CustomAuthenticationForm(AuthenticationForm):
         password = self.cleaned_data.get("password")
 
         if username and password:
-            # Check if user exists in the database
-            try:
-                user = User.objects.get(username=username)
-            except User.DoesNotExist:
-                user = None
+            self.user_cache = authenticate(self.request, username=username, password=password)
+            if self.user_cache is None:
+                # Check if the user exists to deliver a specific inactive message
+                try:
+                    user = User.objects.get(username=username)
+                    if user.check_password(password) and not user.is_active:
+                        raise ValidationError(
+                            "Your account has been disabled. Please contact an Administrator.",
+                            code="disabled_account",
+                        )
+                except User.DoesNotExist:
+                    pass
 
-            # If user exists and password is correct, check if disabled
-            if user and user.check_password(password):
-                if not user.is_active:
-                    raise ValidationError(
-                        "Your account has been disabled. Please contact an Administrator.",
-                        code="disabled_account",
-                    )
+                raise ValidationError(
+                    "Please enter a correct username and password. Note that both fields may be case-sensitive.",
+                    code="invalid_login",
+                )
 
-        return super().clean()
+        return self.cleaned_data
 
 
 class AssetForm(forms.ModelForm):
