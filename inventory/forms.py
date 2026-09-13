@@ -14,9 +14,7 @@ class CustomUserCreationForm(forms.ModelForm):
         required=True,
     )
     confirm_password = forms.CharField(
-        widget=forms.PasswordInput(
-            attrs={"class": "form-control", "placeholder": "Confirm Password"}
-        ),
+        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Confirm Password"}),
         required=True,
     )
 
@@ -25,15 +23,9 @@ class CustomUserCreationForm(forms.ModelForm):
         fields = ["username", "email", "first_name", "last_name", "role"]
         widgets = {
             "username": forms.TextInput(attrs={"class": "form-control", "placeholder": "Username"}),
-            "email": forms.EmailInput(
-                attrs={"class": "form-control", "placeholder": "Email Address"}
-            ),
-            "first_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "First Name"}
-            ),
-            "last_name": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Last Name"}
-            ),
+            "email": forms.EmailInput(attrs={"class": "form-control", "placeholder": "Email Address"}),
+            "first_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "First Name"}),
+            "last_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Last Name"}),
             "role": forms.Select(attrs={"class": "form-select"}),
         }
 

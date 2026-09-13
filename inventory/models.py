@@ -42,14 +42,10 @@ class Asset(models.Model):
     assigned_to = models.CharField(max_length=100, blank=True, default="")
 
     # File/Image fields (null=True is allowed on FileField when file can be absent)
-    accountability_scan = models.FileField(
-        upload_to="accountability_scans/", blank=True, null=True
-    )
+    accountability_scan = models.FileField(upload_to="accountability_scans/", blank=True, null=True)
     qr_code = models.ImageField(upload_to="qr_codes/", blank=True)
 
-    status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default="AVAILABLE"
-    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="AVAILABLE")
     date_purchased = models.DateField()
     date_added = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True)

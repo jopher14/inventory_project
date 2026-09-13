@@ -31,9 +31,7 @@ User = get_user_model()
 def role_required(allowed_roles=[]):
     def decorator(view_func):
         def wrap(request, *args, **kwargs):
-            if request.user.is_authenticated and (
-                request.user.role in allowed_roles or request.user.is_superuser
-            ):
+            if request.user.is_authenticated and (request.user.role in allowed_roles or request.user.is_superuser):
                 return view_func(request, *args, **kwargs)
             return HttpResponse("Unauthorized Access", status=403)
 
@@ -105,9 +103,7 @@ def asset_list(request):
 
     if query:
         assets = assets.filter(
-            Q(company_tag__icontains=query)
-            | Q(serial_number__icontains=query)
-            | Q(unit_name__icontains=query)
+            Q(company_tag__icontains=query) | Q(serial_number__icontains=query) | Q(unit_name__icontains=query)
         )
 
     # Attach forms and latest audit log to each asset instance for template rendering
@@ -132,26 +128,16 @@ def asset_list(request):
             scan_url = asset.accountability_scan.url if asset.accountability_scan else ""
 
             created_user = (
-                asset.created_by.get_full_name() or asset.created_by.username
-                if asset.created_by
-                else "System"
+                asset.created_by.get_full_name() or asset.created_by.username if asset.created_by else "System"
             )
             updated_user = (
-                asset.updated_by.get_full_name() or asset.updated_by.username
-                if asset.updated_by
-                else "System"
+                asset.updated_by.get_full_name() or asset.updated_by.username if asset.updated_by else "System"
             )
 
             # Format timezone-aware timestamps
-            local_created = (
-                timezone.localtime(asset.date_added).strftime("%Y-%m-%d %H:%M")
-                if asset.date_added
-                else ""
-            )
+            local_created = timezone.localtime(asset.date_added).strftime("%Y-%m-%d %H:%M") if asset.date_added else ""
             local_updated = (
-                timezone.localtime(asset.date_updated).strftime("%Y-%m-%d %H:%M")
-                if asset.date_updated
-                else ""
+                timezone.localtime(asset.date_updated).strftime("%Y-%m-%d %H:%M") if asset.date_updated else ""
             )
 
             # Latest audit information
@@ -163,9 +149,7 @@ def asset_list(request):
                 else ""
             )
             latest_audit_date = (
-                timezone.localtime(latest_log.audit_date).strftime("%Y-%m-%d %H:%M")
-                if latest_log
-                else ""
+                timezone.localtime(latest_log.audit_date).strftime("%Y-%m-%d %H:%M") if latest_log else ""
             )
 
             data.append(
@@ -284,16 +268,12 @@ def audit_scan(request):
         if "submit_audit" in request.POST:
             if remarks:
                 AuditLog.objects.create(asset=asset, auditor=request.user, remarks=remarks)
-                messages.success(
-                    request, f"Audit successfully logged for asset '{asset.company_tag}'!"
-                )
+                messages.success(request, f"Audit successfully logged for asset '{asset.company_tag}'!")
                 return redirect("audit_scan")
             else:
                 messages.error(request, "Please enter remarks before submitting the audit.")
 
-    return render(
-        request, "inventory/audit_scan.html", {"asset": asset, "scanned_tag": scanned_tag}
-    )
+    return render(request, "inventory/audit_scan.html", {"asset": asset, "scanned_tag": scanned_tag})
 
 
 # --------------------------------------------------
@@ -307,9 +287,7 @@ def export_csv(request):
     display_timestamp = current_time.strftime("%Y-%m-%d %H:%M")
 
     response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = (
-        f'attachment; filename="inventory_audit_report_{filename_timestamp}.csv"'
-    )
+    response["Content-Disposition"] = f'attachment; filename="inventory_audit_report_{filename_timestamp}.csv"'
 
     writer = csv.writer(response)
     writer.writerow(
@@ -330,26 +308,12 @@ def export_csv(request):
     assets = Asset.objects.all().select_related("created_by", "updated_by").order_by("-date_added")
 
     for asset in assets:
-        created_user = (
-            asset.created_by.get_full_name() or asset.created_by.username
-            if asset.created_by
-            else "System"
-        )
-        updated_user = (
-            asset.updated_by.get_full_name() or asset.updated_by.username
-            if asset.updated_by
-            else "System"
-        )
+        created_user = asset.created_by.get_full_name() or asset.created_by.username if asset.created_by else "System"
+        updated_user = asset.updated_by.get_full_name() or asset.updated_by.username if asset.updated_by else "System"
 
-        local_date_added = (
-            timezone.localtime(asset.date_added).strftime("%Y-%m-%d %H:%M")
-            if asset.date_added
-            else ""
-        )
+        local_date_added = timezone.localtime(asset.date_added).strftime("%Y-%m-%d %H:%M") if asset.date_added else ""
         local_date_updated = (
-            timezone.localtime(asset.date_updated).strftime("%Y-%m-%d %H:%M")
-            if asset.date_updated
-            else ""
+            timezone.localtime(asset.date_updated).strftime("%Y-%m-%d %H:%M") if asset.date_updated else ""
         )
 
         latest_audit = asset.audit_logs.order_by("-audit_date").first()
@@ -371,9 +335,7 @@ def export_csv(request):
         )
 
     writer.writerow([])
-    writer.writerow(
-        ["Audited By Signature:", request.user.get_full_name() or request.user.username]
-    )
+    writer.writerow(["Audited By Signature:", request.user.get_full_name() or request.user.username])
     writer.writerow(["Date:", display_timestamp])
     writer.writerow(["Assisted By Signature:", "___________________"])
     writer.writerow(["Date:", "___________________"])
@@ -457,16 +419,8 @@ def export_pdf(request):
     assets = Asset.objects.all().select_related("created_by", "updated_by").order_by("-date_added")
 
     for asset in assets:
-        created_user = (
-            asset.created_by.get_full_name() or asset.created_by.username
-            if asset.created_by
-            else "System"
-        )
-        updated_user = (
-            asset.updated_by.get_full_name() or asset.updated_by.username
-            if asset.updated_by
-            else "System"
-        )
+        created_user = asset.created_by.get_full_name() or asset.created_by.username if asset.created_by else "System"
+        updated_user = asset.updated_by.get_full_name() or asset.updated_by.username if asset.updated_by else "System"
         latest_audit = asset.audit_logs.order_by("-audit_date").first()
         latest_remark = latest_audit.remarks if latest_audit else "No Remarks"
 
@@ -529,9 +483,7 @@ def export_pdf(request):
 
     filename_timestamp = current_time.replace(" ", "_").replace(":", "")
     response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
-    response["Content-Disposition"] = (
-        f'attachment; filename="inventory_audit_report_{filename_timestamp}.pdf"'
-    )
+    response["Content-Disposition"] = f'attachment; filename="inventory_audit_report_{filename_timestamp}.pdf"'
 
     return response
 
@@ -563,9 +515,7 @@ def user_list(request):
             target_user.is_active = not target_user.is_active
             target_user.save()
             status_str = "activated" if target_user.is_active else "deactivated"
-            messages.success(
-                request, f"User account '{target_user.username}' has been {status_str}."
-            )
+            messages.success(request, f"User account '{target_user.username}' has been {status_str}.")
         return redirect("user_list")
 
     users = User.objects.all().order_by("-date_joined")
@@ -584,16 +534,12 @@ def generate_accountability_pdf(request, pk):
     assignee = asset.assigned_to or "Unassigned"
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36
-    )
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     elements = []
     styles = getSampleStyleSheet()
 
     # Title & Header
-    title_style = ParagraphStyle(
-        "Title", parent=styles["Heading1"], fontSize=16, leading=20, alignment=1
-    )
+    title_style = ParagraphStyle("Title", parent=styles["Heading1"], fontSize=16, leading=20, alignment=1)
     elements.append(Paragraph("IT ASSET ACCOUNTABILITY FORM", title_style))
     elements.append(Spacer(1, 0.25 * inch))
 
@@ -645,9 +591,7 @@ def generate_accountability_pdf(request, pk):
     buffer.seek(0)
 
     # Dynamic filename using Assignee Name
-    clean_assignee = (
-        "".join(c for c in assignee if c.isalnum() or c in (" ", "_")).rstrip().replace(" ", "_")
-    )
+    clean_assignee = "".join(c for c in assignee if c.isalnum() or c in (" ", "_")).rstrip().replace(" ", "_")
     filename = f"Accountability_{clean_assignee}_{asset.company_tag}.pdf"
 
     response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
@@ -663,9 +607,7 @@ def upload_accountability_scan(request, pk):
     if request.method == "POST" and request.FILES.get("accountability_scan"):
         asset.accountability_scan = request.FILES["accountability_scan"]
         asset.save()
-        messages.success(
-            request, f"Scanned accountability file uploaded for asset '{asset.company_tag}'."
-        )
+        messages.success(request, f"Scanned accountability file uploaded for asset '{asset.company_tag}'.")
     else:
         messages.error(request, "Failed to upload file. Please select a valid document.")
     return redirect("asset_list")
