@@ -8,6 +8,7 @@ from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -106,6 +107,15 @@ def asset_list(request):
             Q(company_tag__icontains=query) | Q(serial_number__icontains=query) | Q(unit_name__icontains=query)
         )
 
+    # Fetch unique assigned people for the accountability dropdown form
+    unique_assignees = (
+        Asset.objects.exclude(assigned_to__isnull=True)
+        .exclude(assigned_to="")
+        .values_list("assigned_to", flat=True)
+        .distinct()
+        .order_by("assigned_to")
+    )
+
     # Attach forms and latest audit log to each asset instance for template rendering
     for asset in assets:
         asset.form = AssetForm(instance=asset)
@@ -172,7 +182,7 @@ def asset_list(request):
             )
         return JsonResponse({"assets": data})
 
-    return render(request, "asset_list.html", {"assets": assets, "query": query})
+    return render(request, "asset_list.html", {"assets": assets, "query": query, "unique_assignees": unique_assignees})
 
 
 @login_required
@@ -526,12 +536,23 @@ def user_list(request):
     )
 
 
-# 1. GENERATE ACCOUNTABILITY PDF
+# 1. GENERATE ACCOUNTABILITY PDF FOR MULTIPLE ASSETS BY ASSIGNEE
 @login_required
 @role_required(allowed_roles=["ADMIN", "IT"])
-def generate_accountability_pdf(request, pk):
-    asset = get_object_or_404(Asset, pk=pk)
-    assignee = asset.assigned_to or "Unassigned"
+@require_POST
+def generate_accountability_pdf(request):
+    assignee = request.POST.get("assigned_to", "Unassigned")
+
+    # Query database directly for assets assigned to this person
+    # Change 'YourAssetModel', 'assigned_to', 'unit_name', and 'serial_number' to match your actual model fields
+    assets_queryset = Asset.objects.filter(assigned_to=assignee)
+
+    assets_list = []
+    for asset in assets_queryset:
+        assets_list.append({
+            "unitName": getattr(asset, 'unit_name', str(asset)),
+            "serialNumber": getattr(asset, 'serial_number', '')
+        })
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
@@ -545,25 +566,51 @@ def generate_accountability_pdf(request, pk):
 
     # Form Info Body
     body_style = ParagraphStyle("Body", parent=styles["Normal"], fontSize=10, leading=14)
-    content = f"""
+    header_content = f"""
     This document serves as formal confirmation of the issuance and receipt of company IT hardware.<br/><br/>
     <b>Assignee / Employee:</b> {assignee}<br/>
     <b>Date Issued:</b> {timezone.now().strftime("%Y-%m-%d")}<br/>
-    <b>Company Tag:</b> {asset.company_tag}<br/>
-    <b>Unit Name:</b> {asset.unit_name}<br/>
-    <b>Serial Number:</b> {asset.serial_number}<br/>
-    <b>Asset Type:</b> {asset.get_asset_type_display()}
     """
-    elements.append(Paragraph(content, body_style))
-    elements.append(Spacer(1, 0.4 * inch))
+    elements.append(Paragraph(header_content, body_style))
+    elements.append(Spacer(1, 0.15 * inch))
+
+    # Assets Table Header and Rows
+    table_data = [
+        [
+            Paragraph("<b>#</b>", body_style),
+            Paragraph("<b>Unit Name</b>", body_style),
+            Paragraph("<b>Serial Number</b>", body_style)
+        ]
+    ]
+
+    for index, item in enumerate(assets_list, start=1):
+        table_data.append([
+            Paragraph(str(index), body_style),
+            Paragraph(item.get("unitName", ""), body_style),
+            Paragraph(item.get("serialNumber", ""), body_style)
+        ])
+
+    # Build ReportLab Table
+    asset_table = Table(table_data, colWidths=[40, 250, 250])
+    asset_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#f8f9fa")),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#dee2e6")),
+    ]))
+
+    elements.append(asset_table)
+    elements.append(Spacer(1, 0.3 * inch))
 
     # Terms & Conditions Paragraph
     terms = (
-        "By signing below, the employee acknowledges receipt of the asset listed above in good working"
+        "By signing below, the employee acknowledges receipt of the asset(s) listed above in good working "
         "condition and agrees to follow company asset security and usage policies."
     )
     elements.append(Paragraph(terms, body_style))
-    elements.append(Spacer(1, 0.6 * inch))
+    elements.append(Spacer(1, 0.4 * inch))
 
     # Signature Block Table
     sig_data = [
@@ -590,9 +637,8 @@ def generate_accountability_pdf(request, pk):
     doc.build(elements)
     buffer.seek(0)
 
-    # Dynamic filename using Assignee Name
     clean_assignee = "".join(c for c in assignee if c.isalnum() or c in (" ", "_")).rstrip().replace(" ", "_")
-    filename = f"Accountability_{clean_assignee}_{asset.company_tag}.pdf"
+    filename = f"Accountability_Form_{clean_assignee}.pdf"
 
     response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'

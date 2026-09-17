@@ -231,4 +231,45 @@ document.addEventListener('DOMContentLoaded', function () {
             }, 300);
         });
     }
+
+    // 5. Accountability Form Generator Dropdown Logic
+    const generateBtn = document.getElementById("generate-accountability-btn");
+    const userSelect = document.getElementById("accountability-user-select");
+
+    if (generateBtn && userSelect) {
+        generateBtn.addEventListener("click", function () {
+            const assignedTo = userSelect.value;
+            
+            if (!assignedTo) {
+                alert("Please select an assigned person first.");
+                return;
+            }
+
+            // Create dynamic POST form sending only the selected assignee name
+            const form = document.createElement("form");
+            form.method = "POST";
+            form.action = "/asset/accountability/pdf/";
+
+            // Add CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+            if (csrfToken) {
+                const csrfInput = document.createElement("input");
+                csrfInput.type = "hidden";
+                csrfInput.name = "csrfmiddlewaretoken";
+                csrfInput.value = csrfToken;
+                form.appendChild(csrfInput);
+            }
+
+            // Add assigned_to field
+            const userInput = document.createElement("input");
+            userInput.type = "hidden";
+            userInput.name = "assigned_to";
+            userInput.value = assignedTo;
+            form.appendChild(userInput);
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        });
+    }
 });

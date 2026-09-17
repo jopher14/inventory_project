@@ -1,4 +1,5 @@
 {% load static %}
+{% csrf_token %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -132,14 +133,38 @@
             </div>
         </div>
 
-        <!-- Live Auto-Search Bar -->
+        <!-- Combined Search and Accountability Form Section -->
         <div class="card glass-card border-0 shadow mb-4 no-print">
             <div class="card-body p-2 p-md-3">
-                <div class="input-group input-group-lg">
-                    <span class="input-group-text bg-transparent border-end-0 text-muted">
-                        <i class="bi bi-search fs-5"></i>
-                    </span>
-                    <input type="text" id="search-bar" data-search-url="{% url 'asset_list' %}" class="form-control border-start-0 fs-6 fs-md-5 ps-0 bg-transparent" placeholder="Type Company Tag, Serial Number, or Unit Name to search...">
+                <div class="row align-items-center g-3">
+                    <!-- Search Bar Column -->
+                    <div class="{% if user.role == 'IT' or user.is_superuser %}col-lg-6{% else %}col-lg-12{% endif %}">
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text bg-transparent border-end-0 text-muted">
+                                <i class="bi bi-search fs-5"></i>
+                            </span>
+                            <input type="text" id="search-bar" data-search-url="{% url 'asset_list' %}" class="form-control border-start-0 fs-6 fs-md-5 ps-0 bg-transparent" placeholder="Type Company Tag, Serial Number, or Unit Name to search...">
+                        </div>
+                    </div>
+
+                    {% if user.role == 'IT' or user.is_superuser %}
+                        <!-- Accountability Dropdown & Button Column -->
+                        <div class="col-lg-6">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="flex-grow-1">
+                                    <select id="accountability-user-select" class="form-select form-select-lg">
+                                        <option value="" selected disabled>-- Select Assigned Person --</option>
+                                        {% for person in unique_assignees %}
+                                            <option value="{{ person }}">{{ person }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <button type="button" id="generate-accountability-btn" class="btn btn-primary btn-lg text-nowrap">
+                                    <i class="bi bi-printer me-1"></i> Create Form
+                                </button>
+                            </div>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -222,11 +247,6 @@
                                                     <i class="bi bi-trash"></i> Delete
                                                 </button>
                                             </div>
-
-                                            <!-- Generate Accountability PDF Button -->
-                                            <a href="{% url 'generate_accountability_pdf' asset.id %}" class="btn btn-sm btn-danger w-100" title="Generate Accountability PDF">
-                                                <i class="bi bi-file-earmark-pdf me-1"></i> Accountability PDF
-                                            </a>
 
                                             <!-- Upload Form Button -->
                                             <button type="button" class="btn btn-sm btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#uploadScanModal{{ asset.id }}">
@@ -390,7 +410,7 @@
     <div class="modal fade text-start" id="addAssetModal" tabindex="-1" aria-labelledby="addAssetModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content border-0 shadow">
-                <form method="POST" action="{% url 'asset_list' %}">
+               <form method="POST" action="{% url 'asset_list' %}">
                     {% csrf_token %}
                     <input type="hidden" name="add_asset_submit" value="1">
 
@@ -442,19 +462,18 @@
                                 <input type="date" name="date_purchased" class="form-control">
                             </div>
                         </div>
-                    </div>
-                    <div class="modal-footer bg-light">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary fw-semibold"><i class="bi bi-plus-circle me-1"></i> Save Asset</button>
-                    </div>
-                </form>
-            </div>
+                   </div>
+                   <div class="modal-footer bg-light">
+                       <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                       <button type="submit" class="btn btn-primary fw-semibold"><i class="bi bi-plus-circle me-1"></i> Add Asset</button>
+                   </div>
+               </form>
+           </div>
         </div>
     </div>
     {% endif %}
 
-    <!-- Bootstrap 5 JS Bundle & Static JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- JavaScript to handle top dropdown generate form button functionality -->
     <script src="{% static 'js/inventory.js' %}"></script>
 </body>
 </html>

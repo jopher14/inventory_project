@@ -25,11 +25,7 @@ urlpatterns = [
     path("export/pdf/", views.export_pdf, name="export_pdf"),
     path("export/qr-grid/", utils.export_qr_grid_png, name="export_qr_grid_png"),
     path("users/", views.user_list, name="user_list"),
-    path(
-        "asset/<int:pk>/accountability/pdf/",
-        views.generate_accountability_pdf,
-        name="generate_accountability_pdf",
-    ),
+    path('asset/accountability/pdf/', views.generate_accountability_pdf, name='generate_accountability_pdf'),
     path(
         "asset/<int:pk>/accountability/upload/",
         views.upload_accountability_scan,
