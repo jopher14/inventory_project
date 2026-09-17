@@ -549,10 +549,9 @@ def generate_accountability_pdf(request):
 
     assets_list = []
     for asset in assets_queryset:
-        assets_list.append({
-            "unitName": getattr(asset, 'unit_name', str(asset)),
-            "serialNumber": getattr(asset, 'serial_number', '')
-        })
+        assets_list.append(
+            {"unitName": getattr(asset, "unit_name", str(asset)), "serialNumber": getattr(asset, "serial_number", "")}
+        )
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
@@ -579,27 +578,33 @@ def generate_accountability_pdf(request):
         [
             Paragraph("<b>#</b>", body_style),
             Paragraph("<b>Unit Name</b>", body_style),
-            Paragraph("<b>Serial Number</b>", body_style)
+            Paragraph("<b>Serial Number</b>", body_style),
         ]
     ]
 
     for index, item in enumerate(assets_list, start=1):
-        table_data.append([
-            Paragraph(str(index), body_style),
-            Paragraph(item.get("unitName", ""), body_style),
-            Paragraph(item.get("serialNumber", ""), body_style)
-        ])
+        table_data.append(
+            [
+                Paragraph(str(index), body_style),
+                Paragraph(item.get("unitName", ""), body_style),
+                Paragraph(item.get("serialNumber", ""), body_style),
+            ]
+        )
 
     # Build ReportLab Table
     asset_table = Table(table_data, colWidths=[40, 250, 250])
-    asset_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#f8f9fa")),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#dee2e6")),
-    ]))
+    asset_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f8f9fa")),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#dee2e6")),
+            ]
+        )
+    )
 
     elements.append(asset_table)
     elements.append(Spacer(1, 0.3 * inch))
