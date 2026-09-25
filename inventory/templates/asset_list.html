@@ -138,7 +138,7 @@
             <div class="card-body p-2 p-md-3">
                 <div class="row align-items-center g-3">
                     <!-- Search Bar Column -->
-                    <div class="{% if user.role == 'IT' or user.is_superuser %}col-lg-6{% else %}col-lg-12{% endif %}">
+                    <div class="{% if user.role == 'IT' or user.is_superuser %}col-lg-8{% else %}col-lg-12{% endif %}">
                         <div class="input-group input-group-lg">
                             <span class="input-group-text bg-transparent border-end-0 text-muted">
                                 <i class="bi bi-search fs-5"></i>
@@ -148,19 +148,11 @@
                     </div>
 
                     {% if user.role == 'IT' or user.is_superuser %}
-                        <!-- Accountability Dropdown & Button Column -->
-                        <div class="col-lg-6">
-                            <div class="d-flex align-items-center gap-2">
-                                <div class="flex-grow-1">
-                                    <select id="accountability-user-select" class="form-select form-select-lg">
-                                        <option value="" selected disabled>-- Select Assigned Person --</option>
-                                        {% for person in unique_assignees %}
-                                            <option value="{{ person }}">{{ person }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                                <button type="button" id="generate-accountability-btn" class="btn btn-primary btn-lg text-nowrap">
-                                    <i class="bi bi-printer me-1"></i> Create Form
+                        <!-- Manage Accountability Button Column -->
+                        <div class="col-lg-4">
+                            <div class="d-flex align-items-center justify-content-end">
+                                <button type="button" id="manage-accountability-btn" class="btn btn-primary btn-lg text-nowrap" data-bs-toggle="modal" data-bs-target="#manageAccountabilityModal">
+                                    <i class="bi bi-shield-check me-1"></i> Manage Accountability
                                 </button>
                             </div>
                         </div>
@@ -468,10 +460,63 @@
                        <button type="submit" class="btn btn-primary fw-semibold"><i class="bi bi-plus-circle me-1"></i> Add Asset</button>
                    </div>
                </form>
-           </div>
+            </div>
         </div>
     </div>
     {% endif %}
+
+    <!-- Manage Accountability Modal -->
+    <div class="modal fade" id="manageAccountabilityModal" tabindex="-1" aria-labelledby="manageAccountabilityModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-dark" id="manageAccountabilityModalLabel">
+                        <i class="bi bi-shield-check me-1"></i> Manage Accountability
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th scope="col">Assigned To</th>
+                                    <th scope="col" class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for person in unique_assignees %}
+                                    <tr>
+                                        <td>{{ person }}</td>
+                                        <td class="text-end">
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <!-- Download Button -->
+                                                <button type="button" class="btn btn-outline-primary download-accountability-btn" title="Download Accountability Form" data-assignee="{{ person }}" data-url="{% url 'generate_accountability_pdf' %}">
+                                                    <i class="bi bi-download"></i> Download
+                                                </button>
+
+                                                <!-- Upload Button -->
+                                                <button type="button" class="btn btn-outline-success upload-accountability-btn" title="Upload Signed Form" data-assignee="{{ person }}">
+                                                    <i class="bi bi-upload"></i> Upload
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% empty %}
+                                    <tr>
+                                        <td colspan="2" class="text-center text-muted py-4">No assigned persons found.</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- JavaScript to handle top dropdown generate form button functionality -->

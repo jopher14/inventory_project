@@ -232,44 +232,43 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // 5. Accountability Form Generator Dropdown Logic
-    const generateBtn = document.getElementById("generate-accountability-btn");
-    const userSelect = document.getElementById("accountability-user-select");
+    // 5. Accountability Form Generator / Download Logic
+    document.addEventListener("click", function (e) {
+        const downloadBtn = e.target.closest(".download-accountability-btn");
+        if (!downloadBtn) return;
 
-    if (generateBtn && userSelect) {
-        generateBtn.addEventListener("click", function () {
-            const assignedTo = userSelect.value;
-            
-            if (!assignedTo) {
-                alert("Please select an assigned person first.");
-                return;
-            }
+        const assignedTo = downloadBtn.getAttribute("data-assignee");
+        const targetUrl = downloadBtn.getAttribute("data-url");
+        
+        if (!assignedTo || !targetUrl) {
+            alert("Missing assignee or download URL.");
+            return;
+        }
 
-            // Create dynamic POST form sending only the selected assignee name
-            const form = document.createElement("form");
-            form.method = "POST";
-            form.action = "/asset/accountability/pdf/";
+        // Create dynamic POST form to send the assignee to your views.py function
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = targetUrl;
 
-            // Add CSRF token
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
-            if (csrfToken) {
-                const csrfInput = document.createElement("input");
-                csrfInput.type = "hidden";
-                csrfInput.name = "csrfmiddlewaretoken";
-                csrfInput.value = csrfToken;
-                form.appendChild(csrfInput);
-            }
+        // Add CSRF token
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+        if (csrfToken) {
+            const csrfInput = document.createElement("input");
+            csrfInput.type = "hidden";
+            csrfInput.name = "csrfmiddlewaretoken";
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+        }
 
-            // Add assigned_to field
-            const userInput = document.createElement("input");
-            userInput.type = "hidden";
-            userInput.name = "assigned_to";
-            userInput.value = assignedTo;
-            form.appendChild(userInput);
+        // Add assigned_to field matching your backend expectation
+        const userInput = document.createElement("input");
+        userInput.type = "hidden";
+        userInput.name = "assigned_to";
+        userInput.value = assignedTo;
+        form.appendChild(userInput);
 
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
-        });
-    }
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    });
 });
