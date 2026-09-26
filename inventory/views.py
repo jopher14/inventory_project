@@ -1,9 +1,14 @@
 import csv
 import io
+import os
+from io import BytesIO
+from pathlib import Path
 
+import qrcode
 from django.contrib import messages
 from django.contrib.auth import get_user_model, logout
 from django.contrib.auth.decorators import login_required
+from django.core.files import File
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -51,7 +56,8 @@ def user_logout(request):
 def asset_list(request):
     """
     Main Asset Inventory Dashboard with dynamic spec modal handling,
-    timezone-aware timestamps, latest audit log tracking, and scan file URLs.
+    timezone-aware timestamps, latest audit log tracking, scan file URLs,
+    and TAG-based QR code generation.
     """
     # Process Add Asset Modal POST
     if request.method == "POST" and "add_asset_submit" in request.POST:
@@ -68,6 +74,25 @@ def asset_list(request):
                 created_by=request.user,
                 updated_by=request.user,
             )
+
+            # NEW: Generate and save QR Code strictly based on the asset TAG
+            if asset.company_tag:
+                qr_data = f"Asset Tag: {asset.company_tag} - Type: {asset.asset_type}"
+                qr = qrcode.QRCode(version=1, box_size=10, border=5)
+                qr.add_data(qr_data)
+                qr.make(fit=True)
+
+                img = qr.make_image(fill_color="black", back_color="white")
+                buffer = BytesIO()
+                img.save(buffer, format="PNG")
+                buffer.seek(0)
+
+                # Delete old QR code file if it exists
+                if asset.qr_code and Path(asset.qr_code.path).exists():
+                    Path(asset.qr_code.path).unlink(missing_ok=True)
+
+                file_name = f"qr_codes/qr_{asset.company_tag}.png"
+                asset.qr_code.save(file_name, File(buffer), save=True)
 
             if asset_type == "LAPTOP":
                 LaptopSpec.objects.create(
@@ -116,19 +141,17 @@ def asset_list(request):
         .order_by("assigned_to")
     )
 
-    # NEW: Build a dictionary mapping each assignee to their uploaded scan URL
+    # Build a dictionary mapping each assignee to their uploaded scan URL
     assignee_data = []
     for person in unique_assignees:
-        asset_with_scan = Asset.objects.filter(
-            assigned_to=person,
-            accountability_scan__isnull=False
-        ).exclude(accountability_scan="").first()
+        asset_with_scan = (
+            Asset.objects.filter(assigned_to=person, accountability_scan__isnull=False)
+            .exclude(accountability_scan="")
+            .first()
+        )
 
         scan_url = asset_with_scan.accountability_scan.url if asset_with_scan else ""
-        assignee_data.append({
-            "name": person,
-            "scan_url": scan_url
-        })
+        assignee_data.append({"name": person, "scan_url": scan_url})
 
     # Attach forms and latest audit log to each asset instance for template rendering
     for asset in assets:
@@ -204,7 +227,7 @@ def asset_list(request):
             "query": query,
             "unique_assignees": unique_assignees,
             "assignee_data": assignee_data,
-        }
+        },
     )
 
 
@@ -680,10 +703,21 @@ def upload_accountability_scan(request, assignee):
     # Fetch all assets belonging to this assignee
     assets = Asset.objects.filter(assigned_to=assignee)
     if not assets.exists():
-        return JsonResponse({'status': 'error', 'message': 'No assets found for this assignee.'}, status=404)
+        return JsonResponse({"status": "error", "message": "No assets found for this assignee."}, status=404)
 
-    if request.method == 'POST' and request.FILES.get('accountability_scan'):
-        uploaded_file = request.FILES['accountability_scan']
+    if request.method == "POST" and request.FILES.get("accountability_scan"):
+        uploaded_file = request.FILES["accountability_scan"]
+
+        # Clean up existing scan file from storage if it exists on the first asset
+        existing_asset = assets.first()
+        if existing_asset and existing_asset.accountability_scan:
+            if os.path.isfile(existing_asset.accountability_scan.path):
+                os.remove(existing_asset.accountability_scan.path)
+
+        # Format filename cleanly based strictly on the assignee's name
+        file_extension = os.path.splitext(uploaded_file.name)[1]
+        safe_name = assignee.replace(" ", "_")
+        uploaded_file.name = f"Accountability_Form_{safe_name}{file_extension}"
 
         scan_url = None
         for asset in assets:
@@ -692,11 +726,7 @@ def upload_accountability_scan(request, assignee):
             if not scan_url:
                 scan_url = asset.accountability_scan.url
 
-        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-            return JsonResponse({
-                'status': 'success',
-                'message': 'Scan uploaded successfully!',
-                'scan_url': scan_url
-            })
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse({"status": "success", "message": "Scan uploaded successfully!", "scan_url": scan_url})
 
-    return JsonResponse({'status': 'error', 'message': 'Invalid request.'}, status=400)
+    return JsonResponse({"status": "error", "message": "Invalid request."}, status=400)
