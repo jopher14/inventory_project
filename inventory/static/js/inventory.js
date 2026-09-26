@@ -271,4 +271,101 @@ document.addEventListener('DOMContentLoaded', function () {
         form.submit();
         document.body.removeChild(form);
     });
+
+    // 6. Handle AJAX Form Submission to update inline without full page reloads
+    const sharedUploadModal = document.getElementById('sharedUploadModal');
+    if (sharedUploadModal) {
+        sharedUploadModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            if (button) {
+                const assignee = button.getAttribute('data-assignee');
+                const uploadUrl = button.getAttribute('data-upload-url');
+                
+                const assigneeInput = document.getElementById('modalAssigneeInput');
+                if (assigneeInput) assigneeInput.value = assignee;
+                
+                const uploadForm = document.getElementById('sharedUploadForm');
+                if (uploadForm && uploadUrl) uploadForm.action = uploadUrl;
+            }
+        });
+    }
+
+    // 2. Handle AJAX Form Submission
+    const uploadForm = document.getElementById('sharedUploadForm');
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            
+            const formData = new FormData(uploadForm);
+            const actionUrl = uploadForm.action;
+            
+            let assigneeName = document.getElementById('modalAssigneeInput')?.value;
+            if (!assigneeName) {
+                assigneeName = formData.get('assignee');
+            }
+            
+            fetch(actionUrl, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => {
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.includes("application/json")) {
+                    return response.json();
+                } else {
+                    return response.text().then(text => {
+                        throw new Error("Server returned non-JSON response: " + text.substring(0, 100));
+                    });
+                }
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Remove focus to prevent aria-hidden warnings
+                    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+                        document.activeElement.blur();
+                    }
+
+                    // Hide the upload modal cleanly
+                    const uploadModalEl = document.getElementById('sharedUploadModal');
+                    const uploadModalBs = bootstrap.Modal.getInstance(uploadModalEl);
+                    if (uploadModalBs) {
+                        uploadModalBs.hide();
+                    }
+                    
+                    // Instantly update the table cell using the data-assignee attribute
+                    if (assigneeName && data.scan_url) {
+                        const escapedName = assigneeName.replace(/"/g, '\\"');
+                        const scanCell = document.querySelector(`.scan-cell[data-assignee="${escapedName}"]`);
+                        
+                        if (scanCell) {
+                            scanCell.innerHTML = `
+                                <a href="${data.scan_url}" target="_blank" class="btn btn-sm btn-outline-success" title="View Signed Form">
+                                    <i class="bi bi-file-earmark-check me-1"></i> View Scan
+                                </a>
+                            `;
+                        }
+                    }
+                    
+                    uploadForm.reset();
+
+                    // Ensure the Manage Accountability modal remains active/visible
+                    const manageModalEl = document.getElementById('manageAccountabilityModal');
+                    if (manageModalEl) {
+                        const manageModalBs = bootstrap.Modal.getInstance(manageModalEl) || new bootstrap.Modal(manageModalEl);
+                        manageModalBs.show();
+                    }
+                } else {
+                    alert('Upload failed: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred during file upload. Check the browser console for details.');
+            });
+        });
+    }
 });

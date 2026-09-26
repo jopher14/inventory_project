@@ -116,6 +116,20 @@ def asset_list(request):
         .order_by("assigned_to")
     )
 
+    # NEW: Build a dictionary mapping each assignee to their uploaded scan URL
+    assignee_data = []
+    for person in unique_assignees:
+        asset_with_scan = Asset.objects.filter(
+            assigned_to=person,
+            accountability_scan__isnull=False
+        ).exclude(accountability_scan="").first()
+
+        scan_url = asset_with_scan.accountability_scan.url if asset_with_scan else ""
+        assignee_data.append({
+            "name": person,
+            "scan_url": scan_url
+        })
+
     # Attach forms and latest audit log to each asset instance for template rendering
     for asset in assets:
         asset.form = AssetForm(instance=asset)
@@ -182,7 +196,16 @@ def asset_list(request):
             )
         return JsonResponse({"assets": data})
 
-    return render(request, "asset_list.html", {"assets": assets, "query": query, "unique_assignees": unique_assignees})
+    return render(
+        request,
+        "asset_list.html",
+        {
+            "assets": assets,
+            "query": query,
+            "unique_assignees": unique_assignees,
+            "assignee_data": assignee_data,
+        }
+    )
 
 
 @login_required
@@ -653,12 +676,27 @@ def generate_accountability_pdf(request):
 # 2. UPLOAD SCANNED ACCOUNTABILITY PDF
 @login_required
 @role_required(allowed_roles=["ADMIN", "IT"])
-def upload_accountability_scan(request, pk):
-    asset = get_object_or_404(Asset, pk=pk)
-    if request.method == "POST" and request.FILES.get("accountability_scan"):
-        asset.accountability_scan = request.FILES["accountability_scan"]
-        asset.save()
-        messages.success(request, f"Scanned accountability file uploaded for asset '{asset.company_tag}'.")
-    else:
-        messages.error(request, "Failed to upload file. Please select a valid document.")
-    return redirect("asset_list")
+def upload_accountability_scan(request, assignee):
+    # Fetch all assets belonging to this assignee
+    assets = Asset.objects.filter(assigned_to=assignee)
+    if not assets.exists():
+        return JsonResponse({'status': 'error', 'message': 'No assets found for this assignee.'}, status=404)
+
+    if request.method == 'POST' and request.FILES.get('accountability_scan'):
+        uploaded_file = request.FILES['accountability_scan']
+
+        scan_url = None
+        for asset in assets:
+            asset.accountability_scan = uploaded_file
+            asset.save()  # Saves to database permanently
+            if not scan_url:
+                scan_url = asset.accountability_scan.url
+
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Scan uploaded successfully!',
+                'scan_url': scan_url
+            })
+
+    return JsonResponse({'status': 'error', 'message': 'Invalid request.'}, status=400)

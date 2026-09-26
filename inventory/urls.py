@@ -27,7 +27,7 @@ urlpatterns = [
     path("users/", views.user_list, name="user_list"),
     path("asset/accountability/pdf/", views.generate_accountability_pdf, name="generate_accountability_pdf"),
     path(
-        "asset/<int:pk>/accountability/upload/",
+        "asset/accountability/upload/<str:assignee>/",
         views.upload_accountability_scan,
         name="upload_accountability_scan",
     ),
