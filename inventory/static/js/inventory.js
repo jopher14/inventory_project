@@ -368,4 +368,40 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         });
     }
+
+    // 8. Editing the Username, Password, Email and Full Name
+    const editUserModal = document.getElementById('editUserModal');
+    if (editUserModal) {
+        editUserModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            
+            // Extract info from data-* attributes
+            const userId = button.getAttribute('data-user-id');
+            const username = button.getAttribute('data-username');
+            const firstName = button.getAttribute('data-first-name');
+            const lastName = button.getAttribute('data-last-name');
+            const email = button.getAttribute('data-email');
+            const role = button.getAttribute('data-role');
+            
+            // Populate modal inputs, filtering out Python's 'None' string
+            editUserModal.querySelector('#modalUserId').value = userId;
+            editUserModal.querySelector('#modalUsernameInput').value = username;
+            editUserModal.querySelector('#modalUsernameDisplay').textContent = username;
+            
+            editUserModal.querySelector('#modalFirstNameInput').value = (firstName && firstName !== 'None') ? firstName : '';
+            editUserModal.querySelector('#modalLastNameInput').value = (lastName && lastName !== 'None') ? lastName : '';
+            editUserModal.querySelector('#modalEmailInput').value = (email && email !== 'None') ? email : '';
+            
+            // Set the role select dropdown
+            const roleSelect = editUserModal.querySelector('#modalRoleSelect');
+            if (role && role !== 'None') {
+                roleSelect.value = role;
+            } else {
+                roleSelect.selectedIndex = 0;
+            }
+            
+            // Clear password field on open
+            editUserModal.querySelector('#modalPasswordInput').value = '';
+        });
+    }
 });

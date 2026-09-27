@@ -77,11 +77,29 @@
                             {% for u in users %}
                             <tr>
                                 <td data-label="Username">
-                                    <span class="font-monospace fw-bold text-primary">{{ u.username }}</span>
-                                    {% if u == user %}
-                                        <span class="badge bg-secondary ms-1">You</span>
-                                    {% endif %}
-                                </td>
+                                {% if not u.is_superuser %}
+                                    <!-- Clickable username triggering the modal for non-superusers -->
+                                    <button type="button" 
+                                        class="btn btn-link p-0 text-start text-decoration-none font-monospace fw-bold text-primary edit-user-btn" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#editUserModal" 
+                                        data-user-id="{{ u.id }}" 
+                                        data-username="{{ u.username }}"
+                                        data-first-name="{{ u.first_name }}"
+                                        data-last-name="{{ u.last_name }}"
+                                        data-email="{{ u.email }}"
+                                        data-role="{{ u.role }}">
+                                    {{ u.username }}
+                                </button>
+                                {% else %}
+                                    <!-- Static username for superusers -->
+                                    <span class="font-monospace fw-bold text-dark">{{ u.username }}</span>
+                                {% endif %}
+
+                                {% if u == user %}
+                                    <span class="badge bg-secondary ms-1">You</span>
+                                {% endif %}
+                            </td>
                                 <td data-label="Full Name" class="fw-medium">
                                     {{ u.get_full_name|default:"—" }}
                                 </td>
@@ -193,6 +211,71 @@
                     <div class="modal-footer bg-light">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-warning fw-bold"><i class="bi bi-check-circle me-1"></i> Create Account</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit User Modal (Placed outside the table loop) -->
+    <div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" action="{% url 'user_list' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="edit_user_id" id="modalUserId">
+
+                    <div class="modal-header">
+                        <h5 class="modal-title text-dark" id="editUserModalLabel">Edit User: <span id="modalUsernameDisplay" class="font-monospace text-primary"></span></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    
+                    <div class="modal-body">
+                        <!-- Username -->
+                        <div class="mb-3">
+                            <label for="modalUsernameInput" class="form-label text-dark">Username</label>
+                            <input type="text" class="form-control" id="modalUsernameInput" name="username" required>
+                        </div>
+
+                        <!-- First & Last Name -->
+                        <div class="row mb-3">
+                            <div class="col">
+                                <label for="modalFirstNameInput" class="form-label text-dark">First Name</label>
+                                <input type="text" class="form-control" id="modalFirstNameInput" name="first_name">
+                            </div>
+                            <div class="col">
+                                <label for="modalLastNameInput" class="form-label text-dark">Last Name</label>
+                                <input type="text" class="form-control" id="modalLastNameInput" name="last_name">
+                            </div>
+                        </div>
+
+                        <!-- Email -->
+                        <div class="mb-3">
+                            <label for="modalEmailInput" class="form-label text-dark">Email</label>
+                            <input type="email" class="form-control" id="modalEmailInput" name="email">
+                        </div>
+
+                        <!-- Role -->
+                        <div class="mb-3">
+                            <label for="modalRoleSelect" class="form-label text-dark">Role</label>
+                            <select class="form-select" id="modalRoleSelect" name="role">
+                                <option value="ADMIN">ADMIN</option>
+                                <option value="IT">IT</option>
+                                <option value="AUDIT">AUDIT</option>
+                                <option value="USER">USER</option>
+                            </select>
+                        </div>
+
+                        <!-- Password -->
+                        <div class="mb-3">
+                            <label for="modalPasswordInput" class="form-label text-dark">New Password <span class="text-muted small">(Leave blank to keep current)</span></label>
+                            <input type="password" class="form-control" id="modalPasswordInput" name="new_password" placeholder="Enter new password">
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
                     </div>
                 </form>
             </div>

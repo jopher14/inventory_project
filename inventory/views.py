@@ -548,7 +548,7 @@ def export_pdf(request):
 @role_required(allowed_roles=["ADMIN"])
 def user_list(request):
     """
-    Displays all registered system accounts and handles user account creation.
+    Displays all registered system accounts and handles user account creation, status toggling, and editing.
     """
     # 1. Handle POST submission for creating a new user account
     if request.method == "POST" and "create_user_submit" in request.POST:
@@ -572,6 +572,25 @@ def user_list(request):
             target_user.save()
             status_str = "activated" if target_user.is_active else "deactivated"
             messages.success(request, f"User account '{target_user.username}' has been {status_str}.")
+        return redirect("user_list")
+
+    # 3. Handle POST submission for editing a user account
+    if request.method == "POST" and "edit_user_id" in request.POST:
+        user_id = request.POST.get("edit_user_id")
+        target_user = get_object_or_404(User, id=user_id)
+
+        target_user.username = request.POST.get("username")
+        target_user.first_name = request.POST.get("first_name", "")
+        target_user.last_name = request.POST.get("last_name", "")
+        target_user.email = request.POST.get("email", "")
+        target_user.role = request.POST.get("role")
+
+        new_password = request.POST.get("new_password")
+        if new_password:
+            target_user.set_password(new_password)
+
+        target_user.save()
+        messages.success(request, f"User account '{target_user.username}' updated successfully!")
         return redirect("user_list")
 
     users = User.objects.all().order_by("-date_joined")
