@@ -2,6 +2,5 @@
 db.sqlite3
 .venv/
 __pycache__/
-inventory/__pycache__/
-inventory_project/__pycache__/
+*.py[cod]
 datadump.json

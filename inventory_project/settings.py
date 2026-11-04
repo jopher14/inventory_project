@@ -20,17 +20,28 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
+load_dotenv(BASE_DIR / ".env")
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-j_m3@&r)-*lh^u%-1#94)@^8-jmjvkh#z_1hi83s&v5+%#kj=_"
+SECRET_KEY = os.environ["SECRET_KEY"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "192.168.40.33", "*"]
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv(
+        "ALLOWED_HOSTS", "localhost,127.0.0.1"
+    ).split(",")
+    if host.strip()
+]
+
+# Render provides this hostname automatically.
+render_hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+if render_hostname:
+    ALLOWED_HOSTS.append(render_hostname)
 
 
 # Application definition
@@ -91,25 +102,20 @@ load_dotenv(BASE_DIR / ".env")
 # ----------------------------------------------------
 # Database Configuration
 # ----------------------------------------------------
-# Uses DATABASE_URL on Render/production, or defaults to local SQLite
-# Check if Django is running tests
 IS_TESTING = "test" in sys.argv
-
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if IS_TESTING:
-    # Always use fast in-memory SQLite for running tests
+    # Tests use an isolated, in-memory SQLite database.
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "test_db.sqlite3",
+            "NAME": ":memory:",
         }
     }
-# ----------------------------------------------------
-# Comment this DATABASE_URL elif part for local development
-# ----------------------------------------------------
+
 elif DATABASE_URL:
-    # Use PostgreSQL / Supabase for production and environments with DATABASE_URL
+    # Render uses its DATABASE_URL environment variable.
     DATABASES = {
         "default": dj_database_url.config(
             default=DATABASE_URL,
@@ -118,12 +124,22 @@ elif DATABASE_URL:
             ssl_require=True,
         )
     }
+
 else:
-    # Default fallback for standard local development
+    # Local development connects to Supabase using .env.
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ["DB_NAME"],
+            "USER": os.environ["DB_USER"],
+            "PASSWORD": os.environ["DB_PASSWORD"],
+            "HOST": os.environ["DB_HOST"],
+            "PORT": os.getenv("DB_PORT", "5432"),
+            "OPTIONS": {
+                "sslmode": "require",
+            },
+            "CONN_MAX_AGE": 600,
+            "CONN_HEALTH_CHECKS": True,
         }
     }
 

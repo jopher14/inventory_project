@@ -306,14 +306,50 @@
 
                                 {% if asset.spec_form %}
                                     <hr class="my-4">
-                                    <h6 class="text-primary fw-bold mb-3"><i class="bi bi-cpu me-1"></i>2. {{ asset.get_asset_type_display }} Specifications</h6>
+                                    <h6 class="text-primary fw-bold mb-3">
+                                        2. Specifications
+                                    </h6>
+                                    <p class="text-muted small">
+                                        Brand is required for all types.
+                                        Model is required for laptops, monitors, and cellphones.
+                                        RAM and CPU are required for laptops.
+                                    </p>
+
                                     <div class="row g-3">
-                                        {% for field in asset.spec_form %}
-                                            <div class="col-12 col-md-6">
-                                                <label class="form-label fw-bold">{{ field.label }}</label>
-                                                {{ field }}
-                                            </div>
-                                        {% endfor %}
+                                        <div class="col-md-6">
+                                            <label class="form-label">Brand</label>
+                                            <input type="text" name="brand" class="form-control"
+                                                maxlength="50"
+                                                value="{{ asset.spec_form.brand.value|default_if_none:'' }}">
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label class="form-label">Model</label>
+                                            <input type="text" name="model" class="form-control"
+                                                maxlength="50"
+                                                value="{{ asset.spec_form.model.value|default_if_none:'' }}">
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label class="form-label">RAM — laptops</label>
+                                            <input type="text" name="ram" class="form-control"
+                                                maxlength="20"
+                                                value="{{ asset.spec_form.ram.value|default_if_none:'' }}">
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label class="form-label">CPU — laptops</label>
+                                            <input type="text" name="cpu" class="form-control"
+                                                maxlength="50"
+                                                value="{{ asset.spec_form.cpu.value|default_if_none:'' }}">
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label class="form-label">GPU — optional, laptops</label>
+                                            <input type="text" name="gpu" class="form-control"
+                                                maxlength="50"
+                                                value="{{ asset.spec_form.gpu.value|default_if_none:'' }}">
+                                        </div>
                                     </div>
                                 {% endif %}
                             </div>

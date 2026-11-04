@@ -1,14 +1,11 @@
 import csv
 import io
 import os
-from io import BytesIO
-from pathlib import Path
 
-import qrcode
 from django.contrib import messages
 from django.contrib.auth import get_user_model, logout
 from django.contrib.auth.decorators import login_required
-from django.core.files import File
+from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -59,63 +56,47 @@ def asset_list(request):
     timezone-aware timestamps, latest audit log tracking, scan file URLs,
     and TAG-based QR code generation.
     """
-    # Process Add Asset Modal POST
+    # Validate both forms before creating any database records.
     if request.method == "POST" and "add_asset_submit" in request.POST:
-        if request.user.is_superuser or request.user.role in ["ADMIN", "IT"]:
-            asset_type = request.POST.get("asset_type")
-            asset = Asset.objects.create(
-                unit_name=request.POST.get("unit_name"),
-                company_tag=request.POST.get("company_tag"),
-                serial_number=request.POST.get("serial_number"),
-                asset_type=asset_type,
-                assigned_to=request.POST.get("assigned_to"),
-                status=request.POST.get("status"),
-                date_purchased=request.POST.get("date_purchased"),
-                created_by=request.user,
-                updated_by=request.user,
-            )
+        if not (request.user.is_superuser or request.user.role in ["ADMIN", "IT"]):
+            return HttpResponse("Unauthorized Access", status=403)
 
-            # NEW: Generate and save QR Code strictly based on the asset TAG
-            if asset.company_tag:
-                qr_data = f"Asset Tag: {asset.company_tag} - Type: {asset.asset_type}"
-                qr = qrcode.QRCode(version=1, box_size=10, border=5)
-                qr.add_data(qr_data)
-                qr.make(fit=True)
+        asset_form = AssetForm(request.POST)
+        spec_form_classes = {
+            "LAPTOP": LaptopSpecForm,
+            "MONITOR": MonitorSpecForm,
+            "CELLPHONE": CellphoneSpecForm,
+            "OTHERS": OtherSpecForm,
+        }
+        spec_form_class = spec_form_classes.get(request.POST.get("asset_type"))
+        spec_form = spec_form_class(request.POST) if spec_form_class else None
 
-                img = qr.make_image(fill_color="black", back_color="white")
-                buffer = BytesIO()
-                img.save(buffer, format="PNG")
-                buffer.seek(0)
+        asset_valid = asset_form.is_valid()
+        spec_valid = spec_form.is_valid() if spec_form is not None else False
 
-                # Delete old QR code file if it exists
-                if asset.qr_code and Path(asset.qr_code.path).exists():
-                    Path(asset.qr_code.path).unlink(missing_ok=True)
+        if asset_valid and spec_valid:
+            with transaction.atomic():
+                asset = asset_form.save(commit=False)
+                asset.created_by = request.user
+                asset.updated_by = request.user
+                # Asset.save() already generates the QR code.
+                asset.save()
 
-                file_name = f"qr_codes/qr_{asset.company_tag}.png"
-                asset.qr_code.save(file_name, File(buffer), save=True)
-
-            if asset_type == "LAPTOP":
-                LaptopSpec.objects.create(
-                    asset=asset,
-                    brand=request.POST.get("brand"),
-                    model=request.POST.get("model"),
-                    ram=request.POST.get("ram"),
-                    cpu=request.POST.get("cpu"),
-                    gpu=request.POST.get("gpu"),
-                )
-            elif asset_type == "MONITOR":
-                MonitorSpec.objects.create(
-                    asset=asset, brand=request.POST.get("brand"), model=request.POST.get("model")
-                )
-            elif asset_type == "CELLPHONE":
-                CellphoneSpec.objects.create(
-                    asset=asset, brand=request.POST.get("brand"), model=request.POST.get("model")
-                )
-            elif asset_type == "OTHERS":
-                OtherSpec.objects.create(asset=asset, brand=request.POST.get("brand"))
+                spec = spec_form.save(commit=False)
+                spec.asset = asset
+                spec.save()
 
             messages.success(request, f"Asset '{asset.company_tag}' added successfully!")
             return redirect("asset_list")
+
+        for form in (asset_form, spec_form):
+            if form is None:
+                continue
+            for field_name, errors in form.errors.items():
+                field = form.fields.get(field_name)
+                label = (field.label or field_name) if field is not None else "Asset"
+                for error in errors:
+                    messages.error(request, f"{label}: {error}")
 
     query = request.GET.get("q", "")
 
@@ -234,40 +215,85 @@ def asset_list(request):
 @login_required
 @role_required(allowed_roles=["ADMIN", "IT"])
 def edit_asset(request, pk):
-    asset = get_object_or_404(Asset, pk=pk)
-    spec_instance = None
-    spec_form_cls = None
+    if request.method != "POST":
+        return redirect("asset_list")
 
-    if asset.asset_type == "LAPTOP":
-        spec_instance = getattr(asset, "laptop_spec", None)
-        spec_form_cls = LaptopSpecForm
-    elif asset.asset_type == "MONITOR":
-        spec_instance = getattr(asset, "monitor_spec", None)
-        spec_form_cls = MonitorSpecForm
-    elif asset.asset_type == "CELLPHONE":
-        spec_instance = getattr(asset, "cellphone_spec", None)
-        spec_form_cls = CellphoneSpecForm
-    elif asset.asset_type == "OTHERS":
-        spec_instance = getattr(asset, "other_spec", None)
-        spec_form_cls = OtherSpecForm
+    spec_types = {
+        "LAPTOP": (LaptopSpecForm, LaptopSpec),
+        "MONITOR": (MonitorSpecForm, MonitorSpec),
+        "CELLPHONE": (CellphoneSpecForm, CellphoneSpec),
+        "OTHERS": (OtherSpecForm, OtherSpec),
+    }
 
-    if request.method == "POST":
+    with transaction.atomic():
+        asset = get_object_or_404(
+            Asset.objects.select_for_update(),
+            pk=pk,
+        )
+
         asset_form = AssetForm(request.POST, instance=asset)
-        spec_form = spec_form_cls(request.POST, instance=spec_instance) if spec_form_cls else None
 
-        if asset_form.is_valid() and (spec_form is None or spec_form.is_valid()):
+        # Choose specifications using the submitted asset type.
+        selected = spec_types.get(request.POST.get("asset_type"))
+        spec_form = None
+        selected_model = None
+
+        if selected:
+            spec_form_class, selected_model = selected
+            existing_spec = selected_model.objects.filter(
+                asset=asset
+            ).first()
+
+            spec_form = spec_form_class(
+                request.POST,
+                instance=existing_spec,
+            )
+
+        asset_valid = asset_form.is_valid()
+        spec_valid = (
+            spec_form.is_valid()
+            if spec_form is not None
+            else False
+        )
+
+        if asset_valid and spec_valid:
             updated_asset = asset_form.save(commit=False)
-            updated_asset.updated_by = request.user  # Automatically track editor
+            updated_asset.updated_by = request.user
             updated_asset.save()
 
-            if spec_form:
-                spec = spec_form.save(commit=False)
-                spec.asset = updated_asset
-                spec.save()
+            spec = spec_form.save(commit=False)
+            spec.asset = updated_asset
+            spec.save()
 
-            messages.success(request, f"Asset '{updated_asset.company_tag}' updated successfully!")
+            # Remove specifications belonging to other asset types.
+            for _, spec_model in spec_types.values():
+                if spec_model is not selected_model:
+                    spec_model.objects.filter(
+                        asset=updated_asset
+                    ).delete()
+
+            messages.success(
+                request,
+                f"Asset '{updated_asset.company_tag}' updated successfully!",
+            )
         else:
-            messages.error(request, "Error updating asset details.")
+            for form in (asset_form, spec_form):
+                if form is None:
+                    continue
+
+                for field_name, errors in form.errors.items():
+                    field = form.fields.get(field_name)
+                    label = (
+                        (field.label or field_name)
+                        if field is not None
+                        else "Asset"
+                    )
+
+                    for error in errors:
+                        messages.error(
+                            request,
+                            f"{label}: {error}",
+                        )
 
     return redirect("asset_list")
 

@@ -158,76 +158,144 @@ document.addEventListener('DOMContentLoaded', function () {
     const searchBar = document.getElementById('search-bar');
     if (searchBar) {
         let searchTimeout;
-        searchBar.addEventListener('input', function() {
+        let searchVersion = 0;
+
+        function element(tag, className = '', value) {
+            const node = document.createElement(tag);
+            node.className = className;
+            if (value !== undefined) node.textContent = String(value ?? '');
+            return node;
+        }
+
+        // This project serves QR images from its own /media/ URLs.
+        function safeImageUrl(value) {
+            if (typeof value !== 'string' || !value.trim()) return null;
+            try {
+                const url = new URL(value, window.location.href);
+                if (!['http:', 'https:'].includes(url.protocol)) return null;
+                if (url.origin !== window.location.origin) return null;
+                if (url.username || url.password) return null;
+                return url.href;
+            } catch {
+                return null;
+            }
+        }
+
+        function renderSearchResults(tbody, assets, query) {
+            const fragment = document.createDocumentFragment();
+            if (assets.length === 0) {
+                const row = element('tr');
+                const cell = element('td', 'text-center text-muted py-4');
+                cell.colSpan = 9;
+                cell.append(element('i', 'bi bi-search fs-3 d-block mb-2'));
+                cell.append(document.createTextNode(`No assets found matching "${query}".`));
+                row.append(cell);
+                fragment.append(row);
+            }
+
+            assets.forEach(item => {
+                const row = element('tr');
+                function cell(label, className = '') {
+                    const td = element('td', className);
+                    td.dataset.label = label;
+                    row.append(td);
+                    return td;
+                }
+                cell('Company Tag').append(element('span', 'font-monospace fw-bold text-primary', item.company_tag));
+                cell('Unit Name', 'fw-medium').textContent = item.unit_name ?? '';
+                cell('Serial Number').append(element('small', 'font-monospace text-muted', item.serial_number));
+                const assignee = cell('Assigned To');
+                if (item.assigned_to) {
+                    assignee.append(element('i', 'bi bi-person me-1 text-secondary'));
+                    assignee.append(document.createTextNode(String(item.assigned_to)));
+                } else {
+                    assignee.append(element('span', 'text-muted fst-italic', 'Unassigned'));
+                }
+                const badgeClasses = {
+                    AVAILABLE: 'bg-success',
+                    UNDER_REPAIR: 'bg-warning text-dark',
+                    DISPOSED: 'bg-danger',
+                };
+                const badgeClass = Object.hasOwn(badgeClasses, item.status)
+                    ? badgeClasses[item.status] : 'bg-primary';
+                cell('Status').append(element('span', `badge ${badgeClass}`, item.status_display || item.status));
+                cell('Date Added', 'small text-muted').textContent = item.date_added ?? '';
+                cell('Date Updated', 'small text-muted').textContent = item.date_updated ?? '';
+
+                const qrCell = cell('QR Code', 'no-print text-center');
+                const imageUrl = safeImageUrl(item.qr_code_url);
+                if (imageUrl) {
+                    const wrapper = element('div', 'bg-white p-1 d-inline-block border rounded shadow-sm');
+                    const image = element('img', 'qr-img');
+                    image.alt = 'QR Code';
+                    image.src = imageUrl;
+                    wrapper.append(image);
+                    qrCell.append(wrapper);
+                } else {
+                    qrCell.append(element('span', 'text-muted small', 'No QR'));
+                }
+
+                const actions = cell('Actions', 'no-print text-center');
+                if (item.latest_remark) {
+                    const remark = String(item.latest_remark);
+                    const box = element('div', 'text-start p-1 bg-light rounded border small');
+                    const heading = element('div', 'fw-bold text-success mb-1');
+                    heading.append(element('i', 'bi bi-journal-check me-1'));
+                    heading.append(document.createTextNode('Last Remarks:'));
+                    const paragraph = element('p', 'mb-1 text-wrap text-break',
+                        `"${remark.length > 25 ? remark.substring(0, 25) + '...' : remark}"`);
+                    paragraph.style.maxWidth = '220px';
+                    paragraph.title = remark;
+                    const attribution = element('div', 'text-muted text-end',
+                        `— ${item.latest_auditor ?? ''} (${item.latest_audit_date ?? ''})`);
+                    attribution.style.fontSize = '0.725rem';
+                    box.append(heading, paragraph, attribution);
+                    actions.append(box);
+                } else if (Number.isSafeInteger(item.id) && item.id > 0) {
+                    const group = element('div', 'btn-group btn-group-sm');
+                    group.setAttribute('role', 'group');
+                    for (const [action, style, icon] of [
+                        ['Edit', 'primary', 'pencil-square'],
+                        ['Delete', 'danger', 'trash'],
+                    ]) {
+                        const target = `#${action.toLowerCase()}Modal${item.id}`;
+                        // Only show actions for modals available to this user.
+                        if (!document.getElementById(target.slice(1))) continue;
+                        const button = element('button', `btn btn-outline-${style}`);
+                        button.type = 'button';
+                        button.dataset.bsToggle = 'modal';
+                        button.dataset.bsTarget = target;
+                        button.append(element('i', `bi bi-${icon}`));
+                        button.append(document.createTextNode(` ${action}`));
+                        group.append(button);
+                    }
+                    actions.append(group);
+                }
+                fragment.append(row);
+            });
+            tbody.replaceChildren(fragment);
+        }
+
+        searchBar.addEventListener('input', function () {
             clearTimeout(searchTimeout);
+            const version = ++searchVersion;
             const query = this.value;
             const searchUrl = searchBar.dataset.searchUrl || '';
-
-            searchTimeout = setTimeout(() => {
-                fetch(`${searchUrl}?q=${encodeURIComponent(query)}`, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    const tbody = document.getElementById('inventory-table-body');
-                    tbody.innerHTML = '';
-
-                    if (data.assets.length === 0) {
-                        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-search fs-3 d-block mb-2"></i>No assets found matching "${query}".</td></tr>`;
-                        return;
-                    }
-
-                    data.assets.forEach(item => {
-                        const qrCell = item.qr_code_url 
-                            ? `<div class="bg-white p-1 d-inline-block border rounded shadow-sm">
-                                <img src="${item.qr_code_url}" class="qr-img" alt="QR Code">
-                               </div>` 
-                            : `<span class="text-muted small">No QR</span>`;
-
-                        let statusBadgeClass = 'bg-primary';
-                        if (item.status === 'AVAILABLE') statusBadgeClass = 'bg-success';
-                        else if (item.status === 'UNDER_REPAIR') statusBadgeClass = 'bg-warning text-dark';
-                        else if (item.status === 'DISPOSED') statusBadgeClass = 'bg-danger';
-
-                        function truncateText(text, maxLength = 25) {
-                            if (!text) return '';
-                            return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-                        }
-
-                        let actionsCellContent = '';
-                        if (item.latest_remark) {
-                            const truncatedRemark = truncateText(item.latest_remark, 25);
-                            actionsCellContent = `
-                                <div class="text-start p-1 bg-light rounded border small">
-                                    <div class="fw-bold text-success mb-1"><i class="bi bi-journal-check me-1"></i>Last Remarks:</div>
-                                    <p class="mb-1 text-wrap text-break" style="max-width: 220px;" title="${item.latest_remark}">
-                                        "${truncatedRemark}"
-                                    </p>
-                                    <div class="text-muted text-end" style="font-size: 0.725rem;">&mdash; ${item.latest_auditor} (${item.latest_audit_date})</div>
-                                </div>`;
-                        } else {
-                            actionsCellContent = `
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editModal${item.id}"><i class="bi bi-pencil-square"></i> Edit</button>
-                                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal${item.id}"><i class="bi bi-trash"></i> Delete</button>
-                                </div>`;
-                        }
-
-                        tbody.innerHTML += `
-                            <tr>
-                                <td data-label="Company Tag"><span class="font-monospace fw-bold text-primary">${item.company_tag}</span></td>
-                                <td data-label="Unit Name" class="fw-medium">${item.unit_name}</td>
-                                <td data-label="Serial Number"><small class="font-monospace text-muted">${item.serial_number}</small></td>
-                                <td data-label="Assigned To">${item.assigned_to ? `<i class="bi bi-person me-1 text-secondary"></i>${item.assigned_to}` : '<span class="text-muted fst-italic">Unassigned</span>'}</td>
-                                <td data-label="Status"><span class="badge ${statusBadgeClass}">${item.status_display || item.status}</span></td>
-                                <td data-label="Date Added" class="small text-muted">${item.date_added}</td>
-                                <td data-label="Date Updated" class="small text-muted">${item.date_updated}</td>
-                                <td data-label="QR Code" class="no-print text-center">${qrCell}</td>
-                                <td data-label="Actions" class="no-print text-center">${actionsCellContent}</td>
-                            </tr>
-                        `;
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetch(`${searchUrl}?q=${encodeURIComponent(query)}`, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
                     });
-                });
+                    if (!response.ok) throw new Error('Search request failed');
+                    const data = await response.json();
+                    if (version !== searchVersion) return;
+                    const tbody = document.getElementById('inventory-table-body');
+                    if (tbody && Array.isArray(data.assets)) {
+                        renderSearchResults(tbody, data.assets, query);
+                    }
+                } catch (error) {
+                    console.error('Unable to search inventory:', error);
+                }
             }, 300);
         });
     }
@@ -405,3 +473,4 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 });
+
