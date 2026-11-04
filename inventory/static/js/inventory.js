@@ -79,51 +79,43 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // 2. Add Asset Modal Dynamic Field Toggle Logic
-    const assetTypeSelect = document.getElementById('modal_asset_type');
+    const addAssetModal = document.getElementById('addAssetModal');
+    const assetTypeSelect = addAssetModal?.querySelector('#modal_asset_type');
+
     if (assetTypeSelect) {
-        assetTypeSelect.addEventListener('change', function () {
-            const selectedType = this.value;
-            const specSection = document.getElementById('modal-specifications-section');
-            const allSpecFields = document.querySelectorAll('.modal-spec-field');
-            const laptopFields = document.querySelectorAll('.modal-laptop-spec');
-            const brandField = document.querySelector('.modal-brand-field');
-            const modelField = document.querySelector('.modal-model-field');
+        const specSection = addAssetModal.querySelector(
+            '#modal-specifications-section'
+        );
 
-            if (selectedType) {
-                specSection.style.display = 'block';
-            } else {
-                specSection.style.display = 'none';
-                return;
-            }
+        function updateAddSpecFields() {
+            const type = assetTypeSelect.value;
+            const visibleFields = {
+                LAPTOP: ['brand', 'model', 'ram', 'cpu', 'gpu'],
+                MONITOR: ['brand', 'model'],
+                CELLPHONE: ['brand', 'model'],
+                OTHERS: ['brand'],
+            }[type] || [];
 
-            allSpecFields.forEach(field => {
-                field.style.display = 'none';
+            specSection.style.display = visibleFields.length ? 'block' : 'none';
+
+            specSection.querySelectorAll('.modal-spec-field').forEach(field => {
                 const input = field.querySelector('input');
-                if (input) input.removeAttribute('required');
+                const visible = visibleFields.includes(input.name);
+
+                field.style.display = visible ? 'block' : 'none';
+                input.disabled = !visible;
+                input.required = visible && input.name !== 'gpu';
             });
+        }
 
-            if (selectedType === 'LAPTOP') {
-                brandField.style.display = 'block';
-                modelField.style.display = 'block';
-                laptopFields.forEach(field => field.style.display = 'block');
+        assetTypeSelect.addEventListener('change', updateAddSpecFields);
+        addAssetModal.addEventListener('show.bs.modal', updateAddSpecFields);
 
-                brandField.querySelector('input').setAttribute('required', 'required');
-                modelField.querySelector('input').setAttribute('required', 'required');
-                document.querySelector('input[name="ram"]').setAttribute('required', 'required');
-                document.querySelector('input[name="cpu"]').setAttribute('required', 'required');
-            } 
-            else if (selectedType === 'MONITOR' || selectedType === 'CELLPHONE') {
-                brandField.style.display = 'block';
-                modelField.style.display = 'block';
-
-                brandField.querySelector('input').setAttribute('required', 'required');
-                modelField.querySelector('input').setAttribute('required', 'required');
-            } 
-            else if (selectedType === 'OTHERS') {
-                brandField.style.display = 'block';
-                brandField.querySelector('input').setAttribute('required', 'required');
-            }
+        addAssetModal.querySelector('form').addEventListener('reset', () => {
+            setTimeout(updateAddSpecFields, 0);
         });
+
+        updateAddSpecFields();
     }
 
     // 3. Export PNG Toast Notification Handler

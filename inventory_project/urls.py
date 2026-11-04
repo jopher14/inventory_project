@@ -20,8 +20,11 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from inventory.views import protected_media
+
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("media/<path:file_path>", protected_media, name="protected_media"),
     path("", include("inventory.urls")),
 ]
 

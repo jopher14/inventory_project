@@ -392,68 +392,216 @@
     {% endif %}
 
     <!-- ADD ASSET MODAL -->
-    {% if user.role in 'ADMIN IT' or user.is_superuser %}
-    <div class="modal fade text-start" id="addAssetModal" tabindex="-1" aria-labelledby="addAssetModalLabel" aria-hidden="true">
+    {% if user.role == 'ADMIN' or user.role == 'IT' or user.is_superuser %}
+    <div class="modal fade"
+        id="addAssetModal"
+        tabindex="-1"
+        aria-labelledby="addAssetModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content border-0 shadow">
-               <form method="POST" action="{% url 'asset_list' %}">
+                <form method="POST" action="{% url 'asset_list' %}">
                     {% csrf_token %}
                     <input type="hidden" name="add_asset_submit" value="1">
 
                     <div class="modal-header bg-primary text-white">
-                        <h5 class="modal-title fw-bold" id="addAssetModalLabel"><i class="bi bi-plus-circle-fill me-2"></i>Add New Company Asset</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <h5 class="modal-title fw-bold" id="addAssetModalLabel">
+                            <i class="bi bi-plus-circle-fill me-2"></i>
+                            Add New Company Asset
+                        </h5>
+                        <button type="button"
+                                class="btn-close btn-close-white"
+                                data-bs-dismiss="modal"
+                                aria-label="Close"></button>
                     </div>
 
                     <div class="modal-body p-3 p-md-4 text-dark">
-                        <h6 class="text-primary fw-bold mb-3"><i class="bi bi-info-circle me-1"></i>1. General Information</h6>
+                        <h6 class="text-primary fw-bold mb-3">
+                            <i class="bi bi-info-circle me-1"></i>
+                            1. General Information
+                        </h6>
+
                         <div class="row g-3 mb-3">
                             <div class="col-12 col-md-6">
-                                <label class="form-label fw-bold">Unit Name *</label>
-                                <input type="text" name="unit_name" class="form-control" placeholder="e.g. Workstation 01" required>
+                                <label for="add-unit-name" class="form-label fw-bold">
+                                    Unit Name *
+                                </label>
+                                <input type="text"
+                                    id="add-unit-name"
+                                    name="unit_name"
+                                    class="form-control"
+                                    maxlength="100"
+                                    placeholder="e.g. Workstation 01"
+                                    required>
                             </div>
+
                             <div class="col-12 col-md-6">
-                                <label class="form-label fw-bold">Company Tag *</label>
-                                <input type="text" name="company_tag" class="form-control" placeholder="e.g. ASSET-2026-001" required>
+                                <label for="add-company-tag" class="form-label fw-bold">
+                                    Company Tag *
+                                </label>
+                                <input type="text"
+                                    id="add-company-tag"
+                                    name="company_tag"
+                                    class="form-control"
+                                    maxlength="50"
+                                    placeholder="e.g. ASSET-2026-001"
+                                    required>
                             </div>
+
                             <div class="col-12 col-md-6">
-                                <label class="form-label fw-bold">Serial Number *</label>
-                                <input type="text" name="serial_number" class="form-control" placeholder="e.g. SN-9988776655" required>
+                                <label for="add-serial-number" class="form-label fw-bold">
+                                    Serial Number *
+                                </label>
+                                <input type="text"
+                                    id="add-serial-number"
+                                    name="serial_number"
+                                    class="form-control"
+                                    maxlength="100"
+                                    placeholder="e.g. SN-9988776655"
+                                    required>
                             </div>
+
                             <div class="col-12 col-md-6">
-                                <label class="form-label fw-bold">Asset Type *</label>
-                                <select name="asset_type" id="modal_asset_type" class="form-select" required>
-                                    <option value="" selected disabled>-- Select Asset Type --</option>
+                                <label for="modal_asset_type" class="form-label fw-bold">
+                                    Asset Type *
+                                </label>
+                                <select name="asset_type"
+                                        id="modal_asset_type"
+                                        class="form-select"
+                                        required>
+                                    <option value="" selected disabled>
+                                        -- Select Asset Type --
+                                    </option>
                                     <option value="LAPTOP">Laptop</option>
                                     <option value="MONITOR">Monitor</option>
                                     <option value="CELLPHONE">Cellphone</option>
                                     <option value="OTHERS">Others</option>
                                 </select>
                             </div>
+
                             <div class="col-12 col-md-6">
-                                <label class="form-label fw-bold">Assign To</label>
-                                <input type="text" name="assigned_to" class="form-control" placeholder="Employee Name / Department">
+                                <label for="add-assigned-to" class="form-label fw-bold">
+                                    Assign To
+                                </label>
+                                <input type="text"
+                                    id="add-assigned-to"
+                                    name="assigned_to"
+                                    class="form-control"
+                                    maxlength="100"
+                                    placeholder="Employee Name / Department">
                             </div>
+
                             <div class="col-12 col-md-6">
-                                <label class="form-label fw-bold">Status *</label>
-                                <select name="status" class="form-select" required>
+                                <label for="add-status" class="form-label fw-bold">
+                                    Status *
+                                </label>
+                                <select name="status"
+                                        id="add-status"
+                                        class="form-select"
+                                        required>
                                     <option value="AVAILABLE" selected>Available</option>
                                     <option value="ASSIGNED">Assigned</option>
                                     <option value="UNDER_REPAIR">Under Repair</option>
                                     <option value="DISPOSED">Disposed</option>
                                 </select>
                             </div>
+
                             <div class="col-12 col-md-6">
-                                <label class="form-label fw-bold">Date Purchased</label>
-                                <input type="date" name="date_purchased" class="form-control">
+                                <label for="add-date-purchased" class="form-label fw-bold">
+                                    Date Purchased *
+                                </label>
+                                <input type="date"
+                                    id="add-date-purchased"
+                                    name="date_purchased"
+                                    class="form-control"
+                                    required>
                             </div>
                         </div>
-                   </div>
-                   <div class="modal-footer bg-light">
-                       <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                       <button type="submit" class="btn btn-primary fw-semibold"><i class="bi bi-plus-circle me-1"></i> Add Asset</button>
-                   </div>
-               </form>
+
+                        <div id="modal-specifications-section"
+                            class="mt-4"
+                            style="display: none;">
+                            <hr>
+
+                            <h6 class="text-primary fw-bold mb-3">
+                                <i class="bi bi-cpu me-1"></i>
+                                2. Specifications
+                            </h6>
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6 modal-spec-field modal-brand-field">
+                                    <label for="add-brand" class="form-label fw-bold">
+                                        Brand *
+                                    </label>
+                                    <input type="text"
+                                        id="add-brand"
+                                        name="brand"
+                                        class="form-control"
+                                        maxlength="50">
+                                </div>
+
+                                <div class="col-12 col-md-6 modal-spec-field modal-model-field">
+                                    <label for="add-model" class="form-label fw-bold">
+                                        Model *
+                                    </label>
+                                    <input type="text"
+                                        id="add-model"
+                                        name="model"
+                                        class="form-control"
+                                        maxlength="50">
+                                </div>
+
+                                <div class="col-12 col-md-6 modal-spec-field modal-laptop-spec">
+                                    <label for="add-ram" class="form-label fw-bold">
+                                        RAM *
+                                    </label>
+                                    <input type="text"
+                                        id="add-ram"
+                                        name="ram"
+                                        class="form-control"
+                                        maxlength="20"
+                                        placeholder="e.g. 16 GB">
+                                </div>
+
+                                <div class="col-12 col-md-6 modal-spec-field modal-laptop-spec">
+                                    <label for="add-cpu" class="form-label fw-bold">
+                                        CPU *
+                                    </label>
+                                    <input type="text"
+                                        id="add-cpu"
+                                        name="cpu"
+                                        class="form-control"
+                                        maxlength="50"
+                                        placeholder="e.g. Intel Core i5">
+                                </div>
+
+                                <div class="col-12 col-md-6 modal-spec-field modal-laptop-spec">
+                                    <label for="add-gpu" class="form-label fw-bold">
+                                        GPU — optional
+                                    </label>
+                                    <input type="text"
+                                        id="add-gpu"
+                                        name="gpu"
+                                        class="form-control"
+                                        maxlength="50"
+                                        placeholder="e.g. Integrated Graphics">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer bg-light">
+                        <button type="button"
+                                class="btn btn-secondary"
+                                data-bs-dismiss="modal">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary fw-semibold">
+                            <i class="bi bi-plus-circle me-1"></i>
+                            Add Asset
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

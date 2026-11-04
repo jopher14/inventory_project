@@ -1,16 +1,18 @@
 import csv
 import io
 import os
+from pathlib import PurePosixPath
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model, logout
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_POST, require_safe
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import landscape, letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -763,3 +765,46 @@ def upload_accountability_scan(request, assignee):
             return JsonResponse({"status": "success", "message": "Scan uploaded successfully!", "scan_url": scan_url})
 
     return JsonResponse({"status": "error", "message": "Invalid request."}, status=400)
+
+
+@login_required
+@require_safe
+@never_cache
+def protected_media(request, file_path):
+    if not (request.user.is_superuser or request.user.role in {"ADMIN", "IT", "AUDIT"}):
+        return HttpResponseForbidden("Unauthorized Access")
+
+    # Accept only storage-relative paths without traversal or Windows separators.
+    if "\\" in file_path or any(part in {"", ".", ".."} for part in file_path.split("/")):
+        raise Http404("File not found")
+
+    if file_path.startswith("qr_codes/"):
+        field_name = "qr_code"
+        content_type = "image/png"
+        as_attachment = False
+    elif file_path.startswith("accountability_scans/"):
+        field_name = "accountability_scan"
+        content_type = "application/octet-stream"
+        as_attachment = True
+    else:
+        raise Http404("File not found")
+
+    # Only serve files referenced by an inventory record.
+    asset = Asset.objects.filter(**{field_name: file_path}).first()
+    if asset is None:
+        raise Http404("File not found")
+
+    field_file = getattr(asset, field_name)
+    try:
+        stream = field_file.storage.open(field_file.name, "rb")
+    except FileNotFoundError as error:
+        raise Http404("File not found") from error
+
+    response = FileResponse(
+        stream,
+        as_attachment=as_attachment,
+        filename=PurePosixPath(field_file.name).name,
+        content_type=content_type,
+    )
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
