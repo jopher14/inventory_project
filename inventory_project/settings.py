@@ -30,13 +30,7 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv(
-        "ALLOWED_HOSTS", "localhost,127.0.0.1"
-    ).split(",")
-    if host.strip()
-]
+ALLOWED_HOSTS = [host.strip() for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if host.strip()]
 
 # Render provides this hostname automatically.
 render_hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME")

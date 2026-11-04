@@ -240,9 +240,7 @@ def edit_asset(request, pk):
 
         if selected:
             spec_form_class, selected_model = selected
-            existing_spec = selected_model.objects.filter(
-                asset=asset
-            ).first()
+            existing_spec = selected_model.objects.filter(asset=asset).first()
 
             spec_form = spec_form_class(
                 request.POST,
@@ -250,11 +248,7 @@ def edit_asset(request, pk):
             )
 
         asset_valid = asset_form.is_valid()
-        spec_valid = (
-            spec_form.is_valid()
-            if spec_form is not None
-            else False
-        )
+        spec_valid = spec_form.is_valid() if spec_form is not None else False
 
         if asset_valid and spec_valid:
             updated_asset = asset_form.save(commit=False)
@@ -268,9 +262,7 @@ def edit_asset(request, pk):
             # Remove specifications belonging to other asset types.
             for _, spec_model in spec_types.values():
                 if spec_model is not selected_model:
-                    spec_model.objects.filter(
-                        asset=updated_asset
-                    ).delete()
+                    spec_model.objects.filter(asset=updated_asset).delete()
 
             messages.success(
                 request,
@@ -283,11 +275,7 @@ def edit_asset(request, pk):
 
                 for field_name, errors in form.errors.items():
                     field = form.fields.get(field_name)
-                    label = (
-                        (field.label or field_name)
-                        if field is not None
-                        else "Asset"
-                    )
+                    label = (field.label or field_name) if field is not None else "Asset"
 
                     for error in errors:
                         messages.error(
