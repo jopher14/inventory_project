@@ -1,7 +1,7 @@
 import csv
 import io
-import os
-from pathlib import PurePosixPath
+import logging
+from pathlib import Path, PurePosixPath
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model, logout
@@ -11,6 +11,7 @@ from django.db.models import Q
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.utils.text import slugify
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST, require_safe
 from reportlab.lib import colors
@@ -30,6 +31,7 @@ from .forms import (
 from .models import Asset, AuditLog, CellphoneSpec, LaptopSpec, MonitorSpec, OtherSpec
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 # Role decorator handling role checks and superusers
@@ -348,6 +350,18 @@ def audit_scan(request):
     return render(request, "inventory/audit_scan.html", {"asset": asset, "scanned_tag": scanned_tag})
 
 
+def _escape_csv_cell(value):
+    if not isinstance(value, str):
+        return value
+
+    if value.startswith(("\t", "\r", "\n", "\x00")) or value.lstrip().startswith(
+        ("=", "+", "-", "@", "＝", "＋", "－", "＠")
+    ):
+        return "'" + value
+
+    return value
+
+
 # --------------------------------------------------
 # 1. CSV EXPORT
 # --------------------------------------------------
@@ -361,7 +375,7 @@ def export_csv(request):
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = f'attachment; filename="inventory_audit_report_{filename_timestamp}.csv"'
 
-    writer = csv.writer(response)
+    writer = csv.writer(response, quoting=csv.QUOTE_ALL)
     writer.writerow(
         [
             "Company Tag",
@@ -377,11 +391,16 @@ def export_csv(request):
         ]
     )
 
-    assets = Asset.objects.all().select_related("created_by", "updated_by").order_by("-date_added")
+    assets = Asset.objects.select_related("created_by", "updated_by").order_by("-date_added")
 
     for asset in assets:
-        created_user = asset.created_by.get_full_name() or asset.created_by.username if asset.created_by else "System"
-        updated_user = asset.updated_by.get_full_name() or asset.updated_by.username if asset.updated_by else "System"
+        created_user = "System"
+        if asset.created_by:
+            created_user = asset.created_by.get_full_name() or asset.created_by.username
+
+        updated_user = "System"
+        if asset.updated_by:
+            updated_user = asset.updated_by.get_full_name() or asset.updated_by.username
 
         local_date_added = timezone.localtime(asset.date_added).strftime("%Y-%m-%d %H:%M") if asset.date_added else ""
         local_date_updated = (
@@ -391,23 +410,23 @@ def export_csv(request):
         latest_audit = asset.audit_logs.order_by("-audit_date").first()
         latest_remark = latest_audit.remarks if latest_audit else "No Remarks"
 
-        writer.writerow(
-            [
-                asset.company_tag,
-                asset.unit_name,
-                asset.serial_number,
-                asset.get_status_display(),
-                asset.assigned_to or "Unassigned",
-                created_user,
-                local_date_added,
-                updated_user,
-                local_date_updated,
-                latest_remark,
-            ]
-        )
+        row = [
+            asset.company_tag,
+            asset.unit_name,
+            asset.serial_number,
+            asset.get_status_display(),
+            asset.assigned_to or "Unassigned",
+            created_user,
+            local_date_added,
+            updated_user,
+            local_date_updated,
+            latest_remark,
+        ]
+        writer.writerow([_escape_csv_cell(value) for value in row])
 
+    auditor_name = request.user.get_full_name() or request.user.username
     writer.writerow([])
-    writer.writerow(["Audited By Signature:", request.user.get_full_name() or request.user.username])
+    writer.writerow(["Audited By Signature:", _escape_csv_cell(auditor_name)])
     writer.writerow(["Date:", display_timestamp])
     writer.writerow(["Assisted By Signature:", "___________________"])
     writer.writerow(["Date:", "___________________"])
@@ -731,40 +750,65 @@ def generate_accountability_pdf(request):
     return response
 
 
-# 2. UPLOAD SCANNED ACCOUNTABILITY PDF
+def _delete_unreferenced_scan(storage, name):
+    """Preserve files still referenced by any asset."""
+    try:
+        if name and not Asset.objects.filter(accountability_scan=name).exists():
+            storage.delete(name)
+    except Exception:
+        # Cleanup failure must not turn a committed upload into a failed request.
+        logger.exception("Could not remove obsolete accountability scan: %s", name)
+
+
 @login_required
 @role_required(allowed_roles=["ADMIN", "IT"])
+@require_POST
 def upload_accountability_scan(request, assignee):
-    # Fetch all assets belonging to this assignee
-    assets = Asset.objects.filter(assigned_to=assignee)
-    if not assets.exists():
-        return JsonResponse({"status": "error", "message": "No assets found for this assignee."}, status=404)
+    uploaded_file = request.FILES.get("accountability_scan")
+    if uploaded_file is None:
+        return JsonResponse(
+            {"status": "error", "message": "Please select a scan to upload."},
+            status=400,
+        )
 
-    if request.method == "POST" and request.FILES.get("accountability_scan"):
-        uploaded_file = request.FILES["accountability_scan"]
+    field = Asset._meta.get_field("accountability_scan")
+    storage = field.storage
+    new_name = None
 
-        # Clean up existing scan file from storage if it exists on the first asset
-        existing_asset = assets.first()
-        if existing_asset and existing_asset.accountability_scan:
-            if os.path.isfile(existing_asset.accountability_scan.path):
-                os.remove(existing_asset.accountability_scan.path)
+    try:
+        with transaction.atomic():
+            assets = list(Asset.objects.select_for_update().filter(assigned_to=assignee).order_by("pk"))
+            if not assets:
+                return JsonResponse(
+                    {"status": "error", "message": "No assets found for this assignee."},
+                    status=404,
+                )
 
-        # Format filename cleanly based strictly on the assignee's name
-        file_extension = os.path.splitext(uploaded_file.name)[1]
-        safe_name = assignee.replace(" ", "_")
-        uploaded_file.name = f"Accountability_Form_{safe_name}{file_extension}"
+            old_names = {asset.accountability_scan.name for asset in assets if asset.accountability_scan}
+            extension = Path(uploaded_file.name).suffix.lower()
+            safe_name = slugify(assignee) or "assignee"
+            filename = field.generate_filename(assets[0], f"Accountability_Form_{safe_name}{extension}")
 
-        scan_url = None
-        for asset in assets:
-            asset.accountability_scan = uploaded_file
-            asset.save()  # Saves to database permanently
-            if not scan_url:
-                scan_url = asset.accountability_scan.url
+            # Save a fresh file once. Existing files remain untouched.
+            new_name = storage.save(filename, uploaded_file, max_length=field.max_length)
+            scan_url = storage.url(new_name)
 
-        if request.headers.get("x-requested-with") == "XMLHttpRequest":
-            return JsonResponse({"status": "success", "message": "Scan uploaded successfully!", "scan_url": scan_url})
+            # Update the shared reference without regenerating asset QR images.
+            Asset.objects.filter(pk__in=[asset.pk for asset in assets]).update(
+                accountability_scan=new_name,
+                updated_by=request.user,
+                date_updated=timezone.now(),
+            )
 
-    return JsonResponse({"status": "error", "message": "Invalid request."}, status=400)
+            for old_name in old_names - {new_name}:
+                transaction.on_commit(lambda name=old_name: _delete_unreferenced_scan(storage, name))
+    except Exception:
+        # A database failure rolls back references; remove the unused new file.
+        if new_name:
+            _delete_unreferenced_scan(storage, new_name)
+        raise
+
+    return JsonResponse({"status": "success", "message": "Scan uploaded successfully!", "scan_url": scan_url})
 
 
 @login_required

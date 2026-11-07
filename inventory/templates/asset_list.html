@@ -91,9 +91,12 @@
                         <button type="button" class="btn btn-primary fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#addAssetModal">
                             <i class="bi bi-plus-circle me-1"></i> Add Asset
                         </button>
-                        <a href="{% url 'export_qr_grid_png' %}" id="export-qr-btn" class="btn btn-outline-dark fw-semibold">
-                            <i class="bi bi-file-earmark-image me-1"></i> Export QRs (PNG)
-                        </a>
+                        <form id="qr-export-form" class="m-0" method="post" action="{% url 'export_qr_grid_png' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-dark fw-semibold">
+                                <i class="bi bi-file-earmark-image me-1"></i> Export Selected QRs (PNG)
+                            </button>
+                        </form>
                     {% endif %}
 
                     {% if user.role == 'AUDIT' or user.is_superuser %}
@@ -214,8 +217,18 @@
 
                                 <td data-label="QR Code" class="no-print text-center">
                                     {% if asset.qr_code %}
+                                        {% if user.role == 'ADMIN' or user.role == 'IT' or user.is_superuser %}
+                                            <input type="checkbox"
+                                                name="asset_ids"
+                                                value="{{ asset.pk }}"
+                                                form="qr-export-form"
+                                                class="form-check-input me-2"
+                                                aria-label="Select QR code for {{ asset.company_tag }}">
+                                        {% endif %}
+
                                         <div class="bg-white p-1 d-inline-block border rounded shadow-sm">
-                                            <img src="{{ asset.qr_code.url }}" class="qr-img" alt="QR Code" style="width: 50px; height: 50px;">
+                                            <img src="{{ asset.qr_code.url }}" class="qr-img" alt="QR Code"
+                                                style="width: 50px; height: 50px;">
                                         </div>
                                     {% else %}
                                         <span class="text-muted small">No QR</span>

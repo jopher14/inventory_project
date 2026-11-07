@@ -4,7 +4,7 @@ import qrcode
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.files import File
-from django.db import models
+from django.db import models, router
 
 
 # Extended User Model for Role-Based Control
@@ -18,7 +18,6 @@ class User(AbstractUser):
 
 
 class Asset(models.Model):
-    # 1. Choices / Constants
     ASSET_TYPES = (
         ("LAPTOP", "Laptop"),
         ("MONITOR", "Monitor"),
@@ -32,17 +31,17 @@ class Asset(models.Model):
         ("DISPOSED", "Disposed"),
     )
 
-    # 2. Database Fields
     unit_name = models.CharField(max_length=100)
     company_tag = models.CharField(max_length=50, unique=True)
     serial_number = models.CharField(max_length=100, unique=True)
     asset_type = models.CharField(max_length=20, choices=ASSET_TYPES)
-
-    # DJ001 Fix: String-based fields should use default="" or blank=True without null=True
     assigned_to = models.CharField(max_length=100, blank=True, default="")
 
-    # File/Image fields (null=True is allowed on FileField when file can be absent)
-    accountability_scan = models.FileField(upload_to="accountability_scans/", blank=True, null=True)
+    accountability_scan = models.FileField(
+        upload_to="accountability_scans/",
+        blank=True,
+        null=True,
+    )
     qr_code = models.ImageField(upload_to="qr_codes/", blank=True)
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="AVAILABLE")
@@ -50,7 +49,6 @@ class Asset(models.Model):
     date_added = models.DateTimeField(auto_now_add=True)
     date_updated = models.DateTimeField(auto_now=True)
 
-    # Tracking user relationships
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -66,35 +64,65 @@ class Asset(models.Model):
         related_name="assets_updated",
     )
 
-    # 3. Magic Methods (DJ012 Fix: Put __str__ before custom methods and save())
     def __str__(self):
         return f"{self.company_tag} - {self.unit_name}"
 
-    # 4. Custom save() Method
-    def save(self, *args, **kwargs):
-        # 1. Structure the scanner payload containing Company Tag, Serial Number, and Unit Name
-        qr_content = f"{self.company_tag} | {self.serial_number} | {self.unit_name}"
+    def save(self, force_insert=False, force_update=False, using=None, update_fields=None):
+        using = using or router.db_for_write(type(self), instance=self)
 
-        # 2. Configure high-scannability parameters
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_H,  # 30% error tolerance
-            box_size=10,  # High resolution output
-            border=4,  # Standard margin required by hardware scanners
+        if update_fields is not None:
+            update_fields = set(update_fields)
+            if not update_fields:
+                return
+
+        qr_fields = ("company_tag", "serial_number", "unit_name")
+        previous = None
+
+        if self.pk is not None and not force_insert:
+            previous = type(self).objects.using(using).filter(pk=self.pk).values(*qr_fields, "qr_code").first()
+
+        qr_values = {field: getattr(self, field) for field in qr_fields}
+        qr_name = self.qr_code.name
+
+        if previous is not None and update_fields is not None:
+            # Partial saves use the stored values for fields outside update_fields.
+            for field in qr_fields:
+                if field not in update_fields:
+                    qr_values[field] = previous[field]
+
+            if "qr_code" not in update_fields:
+                qr_name = previous["qr_code"]
+
+        payload_changed = previous is None or any(qr_values[field] != previous[field] for field in qr_fields)
+        qr_missing = not qr_name or not self.qr_code.storage.exists(qr_name)
+
+        if payload_changed or qr_missing:
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_H,
+                box_size=10,
+                border=4,
+            )
+            qr.add_data(" | ".join(qr_values[field] for field in qr_fields))
+            qr.make(fit=True)
+
+            image = qr.make_image(fill_color="black", back_color="white")
+            filename = f"qr_{qr_values['company_tag']}.png"
+
+            with BytesIO() as buffer:
+                image.save(buffer, format="PNG")
+                buffer.seek(0)
+                self.qr_code.save(filename, File(buffer), save=False)
+
+            if update_fields is not None:
+                update_fields.add("qr_code")
+
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
         )
-        qr.add_data(qr_content)
-        qr.make(fit=True)
-
-        # 3. Build image buffer and write file stream
-        img = qr.make_image(fill_color="black", back_color="white")
-        buffer = BytesIO()
-        img.save(buffer, format="PNG")
-        file_name = f"qr_{self.company_tag}.png"
-
-        # Save to Model ImageField without triggering recursive save loop
-        self.qr_code.save(file_name, File(buffer), save=False)
-
-        super().save(*args, **kwargs)
 
 
 # Specs Models linked via OneToOne field

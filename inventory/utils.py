@@ -3,8 +3,9 @@ import math
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect
 from django.http import HttpResponse
+from django.shortcuts import redirect
+from django.views.decorators.http import require_POST
 from PIL import Image, ImageDraw, ImageFont
 
 from .models import Asset
@@ -13,91 +14,89 @@ from .views import role_required
 
 @login_required
 @role_required(allowed_roles=["ADMIN", "IT"])
+@require_POST
 def export_qr_grid_png(request):
-    """
-    Exports all asset QR codes into a single downloadable PNG grid image formatted as:
-    <CompanyTag>   <CompanyTag>   <CompanyTag>   <CompanyTag>
-      <QRCode>       <QRCode>       <QRCode>       <QRCode>
-    """
-    assets = Asset.objects.filter(qr_code__isnull=False).exclude(qr_code="")
+    """Export the saved QR images for selected assets as a single PNG."""
+    selected_ids = set()
+    for value in request.POST.getlist("asset_ids"):
+        if not (value.isascii() and value.isdecimal() and len(value) <= 19):
+            continue
 
-    if not assets.exists():
-        messages.warning(
-            request,
-            "No QR codes available to export. Add an asset first."
-        )
+        asset_id = int(value)
+        if 0 < asset_id <= 2**63 - 1:
+            selected_ids.add(asset_id)
+
+    if not selected_ids:
+        messages.warning(request, "Select at least one QR code to export.")
         return redirect("asset_list")
 
-    # Grid & Item Layout Configurations
-    COLUMNS = 4
-    ROWS = math.ceil(assets.count() / COLUMNS)
+    assets = list(Asset.objects.filter(pk__in=selected_ids, qr_code__isnull=False).exclude(qr_code="").order_by("pk"))
 
-    CARD_WIDTH = 240
-    CARD_HEIGHT = 280
-    PADDING = 20
-    HEADER_MARGIN = 40  # Extra top margin for page title
+    if not assets:
+        messages.warning(request, "The selected assets have no QR codes to export.")
+        return redirect("asset_list")
 
-    # Calculate overall Canvas Dimensions
-    canvas_width = (COLUMNS * CARD_WIDTH) + ((COLUMNS + 1) * PADDING)
-    canvas_height = (ROWS * CARD_HEIGHT) + ((ROWS + 1) * PADDING) + HEADER_MARGIN
+    columns = 4
+    rows = math.ceil(len(assets) / columns)
+    card_width = 240
+    card_height = 280
+    padding = 20
+    header_margin = 40
+    qr_size = 180
 
-    # Create white canvas
+    canvas_width = columns * card_width + (columns + 1) * padding
+    canvas_height = rows * card_height + (rows + 1) * padding + header_margin
+
     canvas = Image.new("RGB", (canvas_width, canvas_height), color="white")
     draw = ImageDraw.Draw(canvas)
 
-    # Load system font (falls back to PIL default if truetype isn't available)
     try:
         font_tag = ImageFont.truetype("arial.ttf", 16)
         font_header = ImageFont.truetype("arialbd.ttf", 20)
-    except IOError:
+    except OSError:
         font_tag = ImageFont.load_default()
         font_header = ImageFont.load_default()
 
-    # Draw Header Title
-    draw.text((PADDING, 15), "COMPANY ASSET QR TAGS SHEET", fill="black", font=font_header)
+    draw.text(
+        (padding, 15),
+        "COMPANY ASSET QR TAGS SHEET",
+        fill="black",
+        font=font_header,
+    )
 
-    # Render each QR card onto the grid
     for index, asset in enumerate(assets):
-        row = index // COLUMNS
-        col = index % COLUMNS
+        row, column = divmod(index, columns)
+        x_offset = padding + column * (card_width + padding)
+        y_offset = header_margin + padding + row * (card_height + padding)
 
-        # Calculate bounding coordinates for this item card
-        x_offset = PADDING + col * (CARD_WIDTH + PADDING)
-        y_offset = HEADER_MARGIN + PADDING + row * (CARD_HEIGHT + PADDING)
+        tag = asset.company_tag
+        left, _, right, _ = draw.textbbox((0, 0), tag, font=font_tag)
+        text_x = x_offset + (card_width - (right - left)) // 2
+        draw.text((text_x, y_offset + 10), tag, fill="black", font=font_tag)
 
-        # 1. Draw CompanyTag Text Centered at Top of Card
-        tag_text = str(asset.company_tag)
-        bbox = draw.textbbox((0, 0), tag_text, font=font_tag)
-        text_width = bbox[2] - bbox[0]
-        text_x = x_offset + (CARD_WIDTH - text_width) // 2
-        text_y = y_offset + 10
-        draw.text((text_x, text_y), tag_text, fill="black", font=font_tag)
-
-        # 2. Load and Paste the Asset QR Code Image below CompanyTag
         try:
-            asset_qr = Image.open(asset.qr_code.path).convert("RGB")
-            asset_qr = asset_qr.resize((180, 180), Image.Resampling.LANCZOS)
+            with asset.qr_code.open("rb") as qr_file, Image.open(qr_file) as image:
+                qr_image = image.convert("RGB").resize((qr_size, qr_size), Image.Resampling.LANCZOS)
+        except OSError:
+            draw.text(
+                (x_offset + 20, y_offset + 100),
+                "[QR Missing]",
+                fill="red",
+                font=font_tag,
+            )
+        else:
+            qr_x = x_offset + (card_width - qr_size) // 2
+            canvas.paste(qr_image, (qr_x, y_offset + 45))
 
-            # Center QR image inside the item card
-            qr_x = x_offset + (CARD_WIDTH - 180) // 2
-            qr_y = y_offset + 45
-            canvas.paste(asset_qr, (qr_x, qr_y))
-        except Exception:
-            # Handle missing file safely
-            draw.text((x_offset + 20, y_offset + 100), "[QR Missing]", fill="red", font=font_tag)
-
-        # Optional: Light border card outline around each tag box
         draw.rectangle(
-            [x_offset, y_offset, x_offset + CARD_WIDTH, y_offset + CARD_HEIGHT],
+            [x_offset, y_offset, x_offset + card_width, y_offset + card_height],
             outline="#D3D3D3",
             width=1,
         )
 
-    # Stream generated Image buffer to HTTP Response
-    buffer = io.BytesIO()
-    canvas.save(buffer, format="PNG")
-    buffer.seek(0)
+    with io.BytesIO() as buffer:
+        canvas.save(buffer, format="PNG")
+        response = HttpResponse(buffer.getvalue(), content_type="image/png")
 
-    response = HttpResponse(buffer.getvalue(), content_type="image/png")
     response["Content-Disposition"] = 'attachment; filename="Company_Asset_QRCodes_Sheet.png"'
     return response
