@@ -1,7 +1,9 @@
 import io
 import math
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.shortcuts import redirect
 from django.http import HttpResponse
 from PIL import Image, ImageDraw, ImageFont
 
@@ -20,7 +22,11 @@ def export_qr_grid_png(request):
     assets = Asset.objects.filter(qr_code__isnull=False).exclude(qr_code="")
 
     if not assets.exists():
-        return HttpResponse("No assets with QR codes found to export.", status=404)
+        messages.warning(
+            request,
+            "No QR codes available to export. Add an asset first."
+        )
+        return redirect("asset_list")
 
     # Grid & Item Layout Configurations
     COLUMNS = 4
